@@ -2,7 +2,9 @@
 
 All notable changes to the Tachikoma project will be documented in this file.
 
-## [0.4.2] - Unreleased
+## 0.4.2 - 2026-09-11
+
+**Highlights:** Fix legacy log-handler forwarding and improve compiler compatibility with Swift Log 1.15.1.
 
 ### Changed
 - Updated Swift Log to 1.15.1, including upstream fixes for legacy log-handler forwarding and Swift 6.5+ WASI builds.
