@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## [0.4.2] - Unreleased
 
+### Changed
+- Updated Swift Log to 1.15.1, including upstream fixes for legacy log-handler forwarding and Swift 6.5+ WASI builds.
+
 ## [0.4.1] - 2026-09-05
 
 **Highlights:** Prevent timeout crashes and preserve Google proxy routes while rejecting invalid base URLs.
