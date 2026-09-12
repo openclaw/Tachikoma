@@ -49,7 +49,7 @@ let package = Package(
             targets: ["TachikomaConfigCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.15.1"),
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.12.1"),
         .package(url: "https://github.com/apple/swift-configuration", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
