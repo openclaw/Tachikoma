@@ -311,7 +311,7 @@ public final class ProviderAdapter: EnhancedModelProvider {
 
     private func simulateStream(from request: ProviderRequest) -> AsyncThrowingStream<TextStreamDelta, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 do {
                     let response = try await self.generateText(request: request)
 
@@ -333,6 +333,7 @@ public final class ProviderAdapter: EnhancedModelProvider {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 }

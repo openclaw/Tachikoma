@@ -65,3 +65,5 @@ On macOS, `python3 scripts/check-doc-examples.py` compiles the Swift snippets in
 | Live providers | `Tests/TachikomaTests/Providers/Integration/ProviderIntegrationTests.swift` |
 
 Generation timeouts use seconds; MCP health-check timeouts use milliseconds. Zero is an immediate deadline that races the operation. Negative, non-finite, and overflowing values are rejected before starting the timed operation. Timeout stop conditions are checked as text deltas arrive; they are not an idle-network timer.
+
+Request-scoped streams propagate consumer cancellation to producer tasks and HTTP requests. UI stream adapters also close on upstream EOF without requiring a terminal delta. Retry configurations reject invalid attempts and durations before starting work.

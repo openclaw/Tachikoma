@@ -238,27 +238,11 @@ struct OpenAICompatibleHelper {
         let finalRequest = urlRequest
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 do {
                     #if canImport(FoundationNetworking)
-                    // Linux: Use data task
-                    let (data, response) = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<
-                        (Data, URLResponse),
-                        Error,
-                    >) in
-                        session.dataTask(with: finalRequest) { data, response, error in
-                            if let error {
-                                cont.resume(throwing: error)
-                            } else if let data, let response {
-                                cont.resume(returning: (data, response))
-                            } else {
-                                cont.resume(throwing: TachikomaError.networkError(NSError(
-                                    domain: "Invalid response",
-                                    code: 0,
-                                )))
-                            }
-                        }.resume()
-                    }
+                    // Linux buffers the body; the async API still propagates cancellation.
+                    let (data, response) = try await session.data(for: finalRequest)
 
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw TachikomaError.networkError(NSError(domain: "Invalid response", code: 0))
@@ -507,6 +491,7 @@ struct OpenAICompatibleHelper {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         } // End of AsyncThrowingStream closure
     } // End of streamText function
 

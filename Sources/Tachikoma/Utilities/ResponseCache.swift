@@ -7,6 +7,15 @@ protocol ResponseCacheSafetyProviding {
     var isResponseCacheSafe: Bool { get }
 }
 
+private final class CacheMemoryObservation: @unchecked Sendable {
+    let token: any NSObjectProtocol
+    init(_ token: any NSObjectProtocol) {
+        self.token = token
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self.token) }
+}
+
 // MARK: - Cache Key
 
 /// Hashable key for cache entries
@@ -123,19 +132,21 @@ public actor ResponseCache {
     private var cache: [CacheKey: CacheEntry] = [:]
     private let configuration: CacheConfiguration
     private var accessOrder: [CacheKey] = []
-    private var memoryPressureObserver: NSObjectProtocol?
-    private var cleanupTimer: Timer?
+    private var memoryPressureObserver: CacheMemoryObservation?
+    private var cleanupTask: Task<Void, Never>?
     private var statistics = CacheStatisticsTracker()
 
     // MARK: - Initialization
 
     public init(configuration: CacheConfiguration = .default) {
         self.configuration = configuration
-        Task {
-            await self.setupMemoryPressureHandling()
-            await self.setupPeriodicCleanup()
+        Task { [weak self] in
+            await self?.setupMemoryPressureHandling()
+            await self?.setupPeriodicCleanup()
         }
     }
+
+    deinit { self.cleanupTask?.cancel() }
 
     // MARK: - Public Methods
 
@@ -275,7 +286,7 @@ public actor ResponseCache {
 
     private func setupMemoryPressureHandling() {
         #if os(iOS) || os(tvOS) || os(watchOS)
-        self.memoryPressureObserver = NotificationCenter.default.addObserver(
+        let observation = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main,
@@ -284,6 +295,7 @@ public actor ResponseCache {
                 await self?.handleMemoryPressure()
             }
         }
+        self.memoryPressureObserver = CacheMemoryObservation(observation)
         #elseif os(macOS)
         // macOS doesn't have UIApplication memory warnings
         // Could use ProcessInfo.processInfo.thermalState monitoring instead
@@ -291,11 +303,11 @@ public actor ResponseCache {
     }
 
     private func setupPeriodicCleanup() {
-        // Run cleanup every minute
-        Task {
+        self.cleanupTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
-                self.performCleanup()
+                do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { return }
+                guard let self else { return }
+                await self.performCleanup()
             }
         }
     }

@@ -160,10 +160,10 @@ public actor LMStudioProvider: ModelProvider {
         urlRequest.httpBody = try self.encoder.encode(openAIRequest)
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 do {
                     #if canImport(FoundationNetworking)
-                    // Linux: URLSession.bytes is not available, use dataTask
+                    // This adapter does not offer streaming on Linux.
                     continuation
                         .finish(throwing: TachikomaError.unsupportedOperation("Streaming not supported on Linux"))
                     #else
@@ -209,6 +209,7 @@ public actor LMStudioProvider: ModelProvider {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 
