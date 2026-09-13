@@ -1,476 +1,54 @@
-# Tachikoma Architecture
-
-This document provides a detailed technical overview of the Tachikoma AI integration library architecture.
-
-## Overview
-
-Tachikoma is designed as a modular, type-safe Swift package that abstracts AI provider differences behind a unified interface. The architecture emphasizes Swift 6 concurrency safety, performance, and extensibility.
-
-## Core Architecture Principles
-
-### 1. Protocol-Oriented Design
-All AI providers implement the `ModelInterface` protocol, ensuring consistent behavior across different services while allowing provider-specific optimizations.
-
-### 2. Swift 6 Strict Concurrency
-- All public APIs are actor-safe
-- Sendable conformance throughout the type system
-- `@MainActor` isolation where appropriate
-- No data races or concurrency issues
-
-### 3. Type Safety
-- Strongly-typed message system with enum-based content types
-- Compile-time verification of tool parameters
-- Generic tool system with context type safety
-
-### 4. Performance First
-- Intelligent caching with configurable policies
-- Streaming responses with minimal memory overhead
-- Lazy provider initialization
-- Efficient JSON handling without reflection
-
-## Module Structure
-
-```
-Tachikoma/
-├── Sources/Tachikoma/
-│   ├── Tachikoma.swift              # Main API entry point
-│   ├── Core/                        # Core abstractions
-│   │   ├── ModelInterface.swift     # Provider protocol
-│   │   ├── ModelProvider.swift      # Provider registry & management
-│   │   ├── MessageTypes.swift       # Message type system
-│   │   ├── StreamingTypes.swift     # Streaming event system
-│   │   ├── ModelParameters.swift    # Request/response parameters
-│   │   ├── ToolDefinitions.swift    # Tool calling system
-│   │   └── TachikomaError.swift     # Error handling
-│   └── Providers/                   # Provider implementations
-│       ├── OpenAI/
-│       │   ├── OpenAIModel.swift    # OpenAI implementation
-│       │   └── OpenAITypes.swift    # OpenAI-specific types
-│       ├── Anthropic/
-│       │   ├── AnthropicModel.swift # Anthropic implementation
-│       │   └── AnthropicTypes.swift # Anthropic-specific types
-│       ├── Grok/
-│       │   ├── GrokModel.swift      # Grok implementation
-│       │   └── GrokTypes.swift      # Grok-specific types
-│       └── Ollama/
-│           ├── OllamaModel.swift    # Ollama implementation
-│           └── OllamaTypes.swift    # Ollama-specific types
-```
-
-## Core Components
-
-### ModelInterface Protocol
-
-The central abstraction that all providers implement:
-
-```swift
-@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)
-public protocol ModelInterface: Sendable {
-    /// Masked API key for debugging
-    var maskedApiKey: String { get }
-    
-    /// Get a single response
-    func getResponse(request: ModelRequest) async throws -> ModelResponse
-    
-    /// Get streaming response
-    func getStreamedResponse(request: ModelRequest) async throws -> AsyncThrowingStream<StreamEvent, any Error>
-}
-```
-
-**Key Design Decisions:**
-- `Sendable` conformance ensures thread safety
-- Async/await for all network operations
-- Streaming uses `AsyncThrowingStream` for memory efficiency
-- Availability annotations ensure compatibility
-
-### Message Type System
-
-Hierarchical message types that handle all AI interaction patterns:
-
-```swift
-public enum Message: Codable, Sendable {
-    case system(id: String? = nil, content: String)
-    case user(id: String? = nil, content: MessageContent)
-    case assistant(id: String? = nil, content: [AssistantContent], status: MessageStatus = .completed)
-    case tool(id: String? = nil, toolCallId: String, content: String)
-    case reasoning(id: String? = nil, content: String)
-}
-```
-
-**Content Type Hierarchy:**
-- `MessageContent`: Text, images, multimodal, files, audio
-- `AssistantContent`: Text output, refusals, tool calls
-- `ImageContent`: URLs, base64 data, detail levels
-- `AudioContent`: Transcripts, durations, metadata
-
-**Benefits:**
-- Type safety prevents invalid message construction
-- Codable conformance for persistence
-- Sendable for concurrency safety
-- Extensible for new content types
-
-### Streaming System
-
-Real-time event processing with comprehensive event types:
-
-```swift
-public enum StreamEvent {
-    case responseStarted(StreamResponseStarted)
-    case textDelta(StreamTextDelta)
-    case toolCallDelta(StreamToolCallDelta)
-    case toolCallCompleted(StreamToolCallCompleted)
-    case responseCompleted(StreamResponseCompleted)
-    case error(StreamError)
-}
-```
-
-**Stream Processing Flow:**
-1. `responseStarted` - Metadata and initialization
-2. `textDelta` - Incremental text content
-3. `toolCallDelta` - Incremental tool call construction
-4. `toolCallCompleted` - Complete tool call available
-5. `responseCompleted` - Stream finished with final metadata
-6. `error` - Error events for handling failures
-
-**Implementation Details:**
-- Each provider converts its streaming format to unified events
-- Back-pressure handling through `AsyncThrowingStream`
-- Automatic event ordering and consistency validation
-
-### Tool Calling System
-
-Generic, type-safe tool execution with context support:
-
-```swift
-public struct Tool<Context> {
-    public let execute: (ToolInput, Context) async throws -> ToolOutput
-    
-    public func toToolDefinition() -> ToolDefinition {
-        // Convert to provider-agnostic definition
-    }
-}
-```
-
-**Type Safety Features:**
-- Generic context ensures compile-time type checking
-- Parameter validation through JSON Schema
-- Async execution for I/O operations
-- Error handling with structured failures
-
-**Tool Definition System:**
-```swift
-public struct ToolDefinition {
-    public let function: FunctionDefinition
-    public let type: ToolType = .function
-}
-
-public struct FunctionDefinition {
-    public let name: String
-    public let description: String?
-    public let parameters: ToolParameters
-}
-```
-
-### Error Handling
-
-Comprehensive error system with recovery guidance:
-
-```swift
-public enum TachikomaError: Error, LocalizedError {
-    case modelNotFound(String)
-    case authenticationFailed
-    case invalidConfiguration(String)
-    case networkError(underlying: any Error)
-    case rateLimited
-    case insufficientQuota
-    case contextLengthExceeded
-    // ... more cases
-    
-    public var isRetryable: Bool { /* logic */ }
-    public var recoverySuggestion: String? { /* guidance */ }
-}
-```
-
-**Error Categories:**
-- **Client Errors**: Invalid requests, configuration issues
-- **Authentication Errors**: API key problems, quota issues
-- **Network Errors**: Connectivity, timeouts, server errors
-- **Provider Errors**: Model-specific limitations
-
-## Provider Implementations
-
-### OpenAI Provider
-
-**Dual API Support:**
-- Chat Completions API (`/v1/chat/completions`) for standard models
-- Responses API (`/v1/responses`) for GPT-5/o4 reasoning models
-
-**Key Features:**
-- Automatic API selection based on model capabilities
-- Parameter filtering (GPT-5/o4 models don't support temperature)
-- Reasoning summary handling for thinking models
-- Complete streaming support for both APIs
-
-**Implementation Highlights:**
-```swift
-private func convertToOpenAIRequest(_ request: ModelRequest, stream: Bool) throws -> OpenAIRequest {
-    // Convert unified request to OpenAI format
-    // Handle parameter filtering
-    // Support both API formats
-}
-```
-
-### Anthropic Provider
-
-**Native Claude Integration:**
-- Direct Claude API with proper message formatting
-- Content blocks for multimodal inputs
-- System prompt separation
-- Tool result handling as user messages
-
-**Streaming Implementation:**
-- Server-Sent Events (SSE) processing
-- Delta accumulation for tool calls
-- Proper handling of Claude's content block structure
-
-**Claude 4 Features:**
-- Extended thinking modes
-- Long-running task support
-- Advanced reasoning capabilities
-
-### Grok Provider
-
-**OpenAI Compatibility:**
-- Uses OpenAI-compatible Chat Completions API
-- Parameter filtering for Grok 3/4 models
-- Standard streaming implementation
-
-**Optimizations:**
-- Efficient parameter encoding
-- Proper error response handling
-- Rate limiting awareness
-
-### Ollama Provider
-
-**Local Inference:**
-- HTTP API for local models
-- Custom timeout handling (5 minutes for model loading)
-- Tool calling detection for compatible models
-
-**Model Support:**
-- Language models: llama3.3, mistral, etc.
-- Vision models: llava, bakllava (no tool calling)
-- Custom model endpoints
-
-## Provider Registry & Management
-
-### ModelProvider (Actor)
-
-Central registry for all model factories and instances:
-
-```swift
-@MainActor
-public final class ModelProvider {
-    public static let shared = ModelProvider()
-    
-    private var modelFactories: [String: @Sendable () throws -> any ModelInterface] = [:]
-    private var modelCache: [String: any ModelInterface] = [:]
-    
-    public func getModel(_ modelName: String) async throws -> any ModelInterface
-    public func register(modelName: String, factory: @escaping @Sendable () throws -> any ModelInterface)
-}
-```
-
-**Registration System:**
-- Default model registration at startup
-- Custom factory registration
-- Lenient name matching (e.g., "gpt" → "gpt-4.1")
-- Provider/model path resolution ("openai/gpt-4")
-
-**Caching Strategy:**
-- Model instances cached after first creation
-- Cache invalidation on registration changes
-- Memory-efficient with weak references where appropriate
-
-## Concurrency & Threading
-
-### Actor Usage
-
-**ModelProvider as MainActor:**
-- Centralizes model management
-- Ensures thread-safe registration
-- Coordinates provider initialization
-
-**Sendable Conformance:**
-- All message types are Sendable
-- Model instances are Sendable
-- Error types are Sendable
-- Tool definitions are Sendable
-
-**Async/Await Integration:**
-- All network operations are async
-- Streaming uses AsyncThrowingStream
-- No blocking operations on main thread
-
-### Memory Management
-
-**Streaming Efficiency:**
-- Events processed incrementally
-- No accumulation of entire responses
-- Automatic memory cleanup
-
-**Cache Management:**
-- Model instances cached intelligently
-- Configurable cache policies
-- Weak references for large objects
-
-## Security Considerations
-
-### API Key Handling
-
-**Environment Variables:**
-- Support for multiple key formats
-- Secure key storage recommendations
-- Masked keys in debug output
-
-**Key Security:**
-- Never log full API keys
-- Secure transmission only
-- No persistence of keys in plain text
-
-### Input Validation
-
-**Parameter Validation:**
-- Type-safe parameter construction
-- Range validation for numeric parameters
-- Required field enforcement
-
-**Content Filtering:**
-- Provider-specific content policies
-- Error handling for filtered content
-- Transparent policy communication
-
-## Performance Characteristics
-
-### Network Efficiency
-
-**Connection Management:**
-- URLSession with appropriate timeouts
-- HTTP/2 support where available
-- Connection pooling
-
-**Request Optimization:**
-- Minimal payload size
-- Efficient JSON encoding
-- Compression support
-
-### Memory Usage
-
-**Streaming Responses:**
-- Constant memory usage regardless of response size
-- Incremental processing
-- Automatic garbage collection
-
-**Object Creation:**
-- Minimal allocations in hot paths
-- Reuse of formatter objects
-- Efficient string handling
-
-## Testing Strategy
-
-### Unit Tests
-
-**Provider Tests:**
-- Mock network responses
-- Error condition testing
-- Parameter validation tests
-
-**Integration Tests:**
-- End-to-end flow testing
-- Streaming behavior validation
-- Tool calling integration
-
-**Performance Tests:**
-- Memory usage profiling
-- Response time benchmarks
-- Concurrent request handling
-
-## Extension Points
-
-### Custom Providers
-
-Implement `ModelInterface` to add new providers:
-
-```swift
-class CustomProvider: ModelInterface {
-    var maskedApiKey: String { "custom-***" }
-    
-    func getResponse(request: ModelRequest) async throws -> ModelResponse {
-        // Custom implementation
-    }
-    
-    func getStreamedResponse(request: ModelRequest) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        // Custom streaming
-    }
-}
-```
-
-### Message Type Extensions
-
-Add new content types by extending `MessageContent`:
-
-```swift
-extension MessageContent {
-    case customType(CustomData)
-}
-```
-
-### Tool System Extensions
-
-Create specialized tool contexts:
-
-```swift
-struct DatabaseContext {
-    let connection: DatabaseConnection
-    let schema: Schema
-}
-
-let dbTool = Tool<DatabaseContext> { input, context in
-    // Database operations with type-safe context
-}
-```
-
-## Future Considerations
-
-### Planned Features
-
-**Enhanced Caching:**
-- Persistent cache with TTL
-- Smart cache invalidation
-- Distributed caching support
-
-**Advanced Streaming:**
-- Bidirectional streaming
-- Stream multiplexing
-- Custom event types
-
-**Provider Enhancements:**
-- More granular configuration
-- Provider-specific optimizations
-- Enhanced error recovery
-
-### Scalability
-
-**High-Volume Usage:**
-- Connection pooling improvements
-- Request batching
-- Rate limiting integration
-
-**Enterprise Features:**
-- Audit logging
-- Metrics collection
-- Custom authentication
-
----
-
-This architecture provides a solid foundation for AI integration while maintaining flexibility for future enhancements and provider additions.
+# Architecture
+
+Tachikoma is a SwiftPM package with four library products and three command-line products. `Package.swift` declares the Swift and platform minimums. The libraries share model and tool types without making the core product depend on audio, agents, or MCP.
+
+## Module boundaries
+
+| Product | Owns | Depends on |
+| --- | --- | --- |
+| `Tachikoma` | Model selection, configuration/authentication, generation, provider adapters, tool values and schemas | Swift Log, Configuration, Algorithms, Crypto |
+| `TachikomaAgent` | Conversation history, agent sessions, dynamic tool discovery and dispatch | Tachikoma, Swift Log |
+| `TachikomaAudio` | Transcription, speech generation, recording, Realtime sessions and audio processing | Tachikoma, Swift Log |
+| `TachikomaMCP` | MCP clients/transports, discovery, schema and result bridges | Tachikoma, Swift Log, MCP Swift SDK |
+
+`ai-cli` and `gpt5cli` are examples built as executable products. `tachikoma` manages configuration and authentication. Their dependencies are declared in the root manifest.
+
+## Generation and providers
+
+`LanguageModel` selects a built-in model, a compatible endpoint, or a caller-supplied `ModelProvider`. Its nested catalogs describe model IDs and capabilities. `ModelSelector` and `ProviderParser` interpret user-facing identifiers; `ProviderFactory` creates the matching adapter.
+
+The active provider protocol is `ModelProvider` in `Sources/Tachikoma/Models/ModelProvider.swift`. It exposes model metadata and accepts `ProviderRequest` values through `generateText(request:)` and `streamText(request:)`. `ModelInterface`, `ModelRequest`, and `ModelResponse` remain public compatibility types; new adapters should follow `ModelProvider`.
+
+`Core/Generation.swift` implements the high-level generation functions. It resolves configuration, drives bounded tool-call steps, accumulates usage, and constructs provider-neutral results. Streaming produces `TextStreamDelta` values, including text, reasoning, tool calls, usage, and terminal status. `StreamTextResult.stream` exposes the asynchronous sequence.
+
+Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible services share `Core/OpenAICompatibleHelper.swift`; Anthropic, Google, Ollama, LM Studio, and the OpenAI Responses API retain their own wire formats. Anthropic and Ollama have separate implementation files. Shared reasoning endpoint identity belongs to Core because generation and multiple adapters use it.
+
+`AsyncThrowingStream` is an event-delivery mechanism, not a guarantee of bounded buffering or producer backpressure. Owners of background tasks must cancel them when the consumer terminates. Some models buffer text until terminal status so a refusal can discard it safely; consult the provider's capabilities and `GenerationSettings.streamBuffering`.
+
+## Messages, reasoning, and tools
+
+`ModelMessage` is a struct with a role, content parts, identity, timestamp, channel, and metadata. Content parts carry text, images, provider reasoning, tool calls, and tool results. Agent conversations preserve these structured parts instead of reconstructing history from displayed text.
+
+Provider-native reasoning is replayed only when its provider/model/endpoint identity matches the next request. This is a trust boundary: changing providers or credentials must not accidentally forward opaque history to another endpoint. Keep the replay and content-filter regression tests when changing generation or conversation merging.
+
+`AgentTool` combines a name, description, `AgentToolParameters`, and an asynchronous executor. Arguments and results use `AnyAgentToolValue`, which preserves typed JSON values. `AgentToolParameters.jsonSchema()` is the shared serialization path; provider-specific normalization is explicit. `AgentToolJSONSchema` offers a recursive typed view while retaining unknown keywords and the source schema. It does not resolve references or validate tool inputs at runtime.
+
+`TachikomaAgent` binds dynamically discovered tools to the provider that supplied their schemas. Registry refreshes invalidate stale bindings, and duplicate names fail instead of dispatching by discovery order. `TachikomaMCP` uses shared schema and content bridges for both static adapters and dynamic discovery.
+
+## Configuration and concurrency
+
+Use an explicit `TachikomaConfiguration` when callers need different keys, endpoints, or provider factories. `TachikomaConfiguration.resolve` chooses the supplied instance, then the application default, then the automatically loaded singleton. Environment values override stored profile values during automatic loading. `TKAuthManager` owns credential resolution and OAuth refresh coordination.
+
+Actors own asynchronous mutable state such as sessions, tool registries, caches, and transport continuations. Synchronous configuration and conversation access uses locks. `@unchecked Sendable` is a requirement to preserve the associated locking discipline, not proof that every access is safe. Keep locks out of suspension points and preserve generation checks around reconnects and late responses.
+
+Conversation continuations serialize through an actor gate. Generated history is merged against snapshot identities so a concurrent edit cannot silently overwrite the user's conversation.
+
+## Audio and MCP
+
+`TachikomaAudio/Transcription` contains speech/transcription adapters; `Recording` and `Realtime/Audio` contain platform-specific capture and processing. Realtime separates WebSocket transport, session events, conversation state, and tool execution. Hosts own microphone permissions and capture. See [Realtime voice](openai-harmony.md).
+
+`TachikomaMCP/Client` owns stdio, HTTP, and SSE transports. Stdio serializes complete JSON-line frames and tracks pending requests by connection generation. Disconnect and child exit fail pending work and clear cached tools. SSE owns its reader task and prevents superseded readers from mutating replacement state. See the [MCP guide](../Sources/TachikomaMCP/README.md).
+
+## Validation
+
+See [the testing guide](testing.md) for hermetic tests, live provider gates, and the supported tooling. Provider changes need request/response fixtures; lifecycle changes need cancellation, reconnect, and failure-path coverage. Keep credentials out of fixtures and default test runs.

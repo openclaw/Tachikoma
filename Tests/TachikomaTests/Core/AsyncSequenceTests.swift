@@ -3,7 +3,7 @@ import Testing
 
 struct AsyncSequenceTests {
     @Test
-    func `StreamTextResult conforms to AsyncSequence`() async throws {
+    func `StreamTextResult exposes an AsyncSequence`() async throws {
         // Create a test stream
         let testStream = AsyncThrowingStream<TextStreamDelta, Error> { continuation in
             Task {
@@ -33,7 +33,7 @@ struct AsyncSequenceTests {
     }
 
     @Test
-    func `StreamTextResult can be iterated multiple ways`() async throws {
+    func `StreamTextResult stream yields terminal events`() async throws {
         let testStream = AsyncThrowingStream<TextStreamDelta, Error> { continuation in
             Task {
                 for i in 1...3 {

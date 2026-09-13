@@ -6,8 +6,8 @@ A command-line interface for querying AI models through the Tachikoma library.
 
 ```bash
 # Clone and build
-git clone https://github.com/steipete/tachikoma.git
-cd tachikoma
+git clone https://github.com/openclaw/Tachikoma.git
+cd Tachikoma
 swift build --product ai-cli
 
 # Install globally (optional)
@@ -59,27 +59,7 @@ Add to your shell profile (`~/.zshrc`, `~/.bashrc`) for persistence.
 
 ## Supported Models
 
-### OpenAI
-- **GPT-5 Series**: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`
-
-### Anthropic
-- **Claude 4.x**: `claude-opus-4-7`, `claude-opus-4-5`, `claude-opus-4-1-20250805`, `claude-sonnet-4-6`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5`
-
-### Google
-- **Gemini**: `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
-
-### Others
-- **Mistral**: `mistral-large-latest`, `mistral-medium-latest`, `mistral-medium-3-5`, `mistral-small-latest`, `open-mistral-nemo-2407`, `codestral-latest`
-- **Groq**: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`
-- **Grok**: `grok-4.3`, `grok-4.20-0309-reasoning`, `grok-4.20-0309-non-reasoning`
-- **Ollama** (local): `llama3.3`, `llava`, any installed model
-
-### Model Shortcuts
-- `claude` → claude-opus-4-7
-- `gpt` → gpt-5.5
-- `gemini` → gemini-3.1-pro-preview
-- `grok` → grok-4.3
-- `llama` → llama3.3
+The [model catalog](../../docs/models.md) lists the current provider IDs and defaults. The CLI defaults to `gpt-5.5`; `--model claude` selects `LanguageModel.claude`. Local IDs can be explicit, for example `--model ollama/llama3.3` or `--model lmstudio/openai/gpt-oss-20b`.
 
 ## Examples
 

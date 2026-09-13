@@ -92,4 +92,4 @@ await conversation.registerBuiltInTools()
 - `RealtimeConversation` requires Combine. Platforms without Combine receive `TachikomaError.unavailable`.
 - The Swift package currently requires Swift 6.2 and declares macOS 14, iOS 17, tvOS 17, watchOS 10, and visionOS 1 as its deployment floors.
 
-The implementation lives under `Sources/TachikomaAudio/Realtime`; runnable source examples live under `Examples/Realtime*.swift`.
+The implementation lives under `Sources/TachikomaAudio/Realtime`; a host-integration example lives in [Examples/RealtimeExample.swift](../Examples/RealtimeExample.swift).
