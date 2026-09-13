@@ -61,9 +61,7 @@ struct SSETransportTests {
 
         let initialTransport = await state.installConnection(
             transport: firstTransport,
-            baseURL: staleEndpoint,
-            headers: [:],
-            timeout: 30,
+            timeoutNanoseconds: 30_000_000_000,
         ) { transport, generation in
             await firstStarted.open()
             await releaseFirst.wait()
@@ -78,9 +76,7 @@ struct SSETransportTests {
 
         let replacedTransport = await state.installConnection(
             transport: secondTransport,
-            baseURL: currentEndpoint,
-            headers: [:],
-            timeout: 30,
+            timeoutNanoseconds: 30_000_000_000,
         ) { transport, generation in
             await observation.recordSecond(
                 transportMatches: transport === secondTransport,
@@ -98,9 +94,8 @@ struct SSETransportTests {
         #expect(await observation.firstReaderUsedExpectedTransport)
         #expect(await observation.secondReaderUsedExpectedTransport)
         #expect(firstGeneration != secondGeneration)
-        #expect(await state.setEndpoint(staleEndpoint, readerGeneration: firstGeneration) == false)
-        #expect(await state.setEndpoint(currentEndpoint, readerGeneration: secondGeneration) == true)
-        #expect(await state.getEndpoint() == currentEndpoint)
+        #expect(await state.getTransport(readerGeneration: firstGeneration) == nil)
+        #expect(await state.getTransport(readerGeneration: secondGeneration) === secondTransport)
 
         let pendingRequest = Task<Data, Swift.Error> {
             try await withCheckedThrowingContinuation { continuation in

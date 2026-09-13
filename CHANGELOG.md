@@ -7,6 +7,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ### Fixed
 - Stream wrappers and provider requests now cancel owned work when consumers stop; UI streams finish on EOF, and cache/retry tasks release their owners and cancellation handlers.
 - JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
+- MCP HTTP notifications now accept empty acknowledgements and preserve session headers; streamed responses skip progress events and match request IDs, while SSE requests share the SDK connection for sending, receiving, cancellation, and negotiated protocol metadata.
 
 ### Changed
 - CI now checks Swift 6.3.3 alongside the existing Swift 6.2.4 checks, pins Actions and linter binaries, isolates compiler caches, and typechecks guide examples; core coverage also supports the newer Swift Build object layout.
