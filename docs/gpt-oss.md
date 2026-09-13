@@ -37,7 +37,7 @@ let response = try await streamText(
     messages: [.user("Compare value and reference semantics.")],
     settings: GenerationSettings(reasoningEffort: .low)
 )
-for try await delta in response {
+for try await delta in response.stream {
     switch delta.type {
     case .textDelta:
         print(delta.content ?? "", terminator: "")

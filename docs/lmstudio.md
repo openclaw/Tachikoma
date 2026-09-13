@@ -52,14 +52,14 @@ let response = try await streamText(
     model: .lmstudio(.custom("openai/gpt-oss-20b")),
     messages: [.user("Write a short explanation of async/await.")]
 )
-for try await delta in response {
+for try await delta in response.stream {
     if let content = delta.content {
         print(content, terminator: "")
     }
 }
 ```
 
-Pass `[AgentTool]` to `generateText` for tool-call loops. Tool support depends on the loaded model and server configuration; the SDK converts schemas and tool results to the server's chat format. See the [README tool example](../README.md#use-tools) and [model catalog](models.md).
+The adapter can send tool definitions, but its current history conversion drops structured tool calls and results. Full multi-step tool conversations remain a known limitation of this adapter. See the [model catalog](models.md) for provider selection.
 
 ## Operational limits
 

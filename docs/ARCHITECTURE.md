@@ -19,7 +19,7 @@ Tachikoma is a SwiftPM package with four library products and three command-line
 
 The active provider protocol is `ModelProvider` in `Sources/Tachikoma/Models/ModelProvider.swift`. It exposes model metadata and accepts `ProviderRequest` values through `generateText(request:)` and `streamText(request:)`. `ModelInterface`, `ModelRequest`, and `ModelResponse` remain public compatibility types; new adapters should follow `ModelProvider`.
 
-`Core/Generation.swift` implements the high-level generation functions. It resolves configuration, drives bounded tool-call steps, accumulates usage, and constructs provider-neutral results. Streaming produces `TextStreamDelta` values, including text, reasoning, tool calls, usage, and terminal status. `StreamTextResult` exposes the stream and conforms to `AsyncSequence`.
+`Core/Generation.swift` implements the high-level generation functions. It resolves configuration, drives bounded tool-call steps, accumulates usage, and constructs provider-neutral results. Streaming produces `TextStreamDelta` values, including text, reasoning, tool calls, usage, and terminal status. `StreamTextResult.stream` exposes the asynchronous sequence.
 
 Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible services share `Core/OpenAICompatibleHelper.swift`; Anthropic, Google, Ollama, LM Studio, and the OpenAI Responses API retain their own wire formats. Anthropic and Ollama have separate implementation files. Shared reasoning endpoint identity belongs to Core because generation and multiple adapters use it.
 
@@ -27,7 +27,7 @@ Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible serv
 
 ## Messages, reasoning, and tools
 
-`ModelMessage` is a struct with a role, content parts, identity, timestamp, channel, and metadata. Content parts carry text, images, audio, tool calls, and tool results. Agent conversations preserve these structured parts instead of reconstructing history from displayed text.
+`ModelMessage` is a struct with a role, content parts, identity, timestamp, channel, and metadata. Content parts carry text, images, provider reasoning, tool calls, and tool results. Agent conversations preserve these structured parts instead of reconstructing history from displayed text.
 
 Provider-native reasoning is replayed only when its provider/model/endpoint identity matches the next request. This is a trust boundary: changing providers or credentials must not accidentally forward opaque history to another endpoint. Keep the replay and content-filter regression tests when changing generation or conversation merging.
 
