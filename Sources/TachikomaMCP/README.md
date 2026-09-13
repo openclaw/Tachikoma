@@ -237,3 +237,9 @@ do {
 ## License
 
 Same as Tachikoma - see main LICENSE file.
+
+## HTTP transport lifecycle
+
+HTTP notifications omit JSON-RPC IDs and accept successful empty acknowledgements. HTTP connections retain server session headers and cancel pending network work on disconnect. The SSE adapter uses the SDK's streamable HTTP connection for both POST responses and SSE messages; custom headers and negotiated protocol versions stay with that connection. Caller cancellation clears pending requests. Non-finite or overflowing SSE timeouts are rejected before connecting; nonpositive finite values retain the 30-second default.
+
+For `transport: "sse"`, configure a streamable HTTP endpoint that accepts POST requests at the configured URL, with optional SSE delivery. Legacy servers that advertise a separate POST URL through an `endpoint` event are not supported by this adapter.

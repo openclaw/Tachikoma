@@ -146,6 +146,14 @@ public final class MCPClient: Sendable {
             )
             let initResponse = try await self.initialize(using: transport, params: initParams)
 
+            if let version = initResponse.protocolVersion {
+                if let sse = transport as? SSETransport {
+                    await sse.updateProtocolVersion(version)
+                } else if let http = transport as? HTTPTransport {
+                    await http.updateProtocolVersion(version)
+                }
+            }
+
             self.logger.debug("Initialized MCP connection: \(initResponse)")
 
             // Send initialized notification (per spec name)
@@ -291,6 +299,7 @@ struct InitializeParamsSnake: Codable {
 }
 
 struct InitializeResponse: Decodable {
+    let protocolVersion: String?
     let serverInfo: ServerInfo?
     let capabilities: ServerCapabilities?
 
