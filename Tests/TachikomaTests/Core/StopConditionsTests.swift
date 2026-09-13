@@ -72,7 +72,7 @@ struct StopConditionsTests {
     @Test
     func `TimeoutStopCondition should stop after duration`() async {
         let clock = ManualTestClock()
-        let condition = TimeoutStopCondition(timeout: 10, now: { clock.now })
+        let condition = TimeoutStopCondition(timeout: 10) { clock.now }
 
         #expect(await condition.shouldStop(text: "Hello", delta: nil) == false)
         clock.advance(by: 9)

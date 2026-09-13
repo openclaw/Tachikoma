@@ -4,14 +4,25 @@ import Testing
 
 @Suite("Stdio frame writer")
 struct StdioFrameWriterTests {
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func `Concurrent sends preserve complete JSON lines`() async throws {
         let pipe = Pipe()
+        defer {
+            try? pipe.fileHandleForWriting.close()
+            try? pipe.fileHandleForReading.close()
+        }
+        let (outputStream, outputContinuation) = AsyncStream<Data>.makeStream()
+        // Drain concurrently: a pipe cannot buffer the entire batch before the first read.
+        DispatchQueue.global().async {
+            outputContinuation.yield(pipe.fileHandleForReading.readDataToEndOfFile())
+            outputContinuation.finish()
+        }
         let writer = StdioFrameWriter()
         let generation: UInt64 = 42
         await writer.install(pipe.fileHandleForWriting, generation: generation)
 
-        let payloads = (0..<512).map { Data("{\"id\":\($0)}".utf8) }
+        let padding = String(repeating: "x", count: 1024)
+        let payloads = (0..<512).map { Data("{\"id\":\($0),\"padding\":\"\(padding)\"}".utf8) }
         try await withThrowingTaskGroup(of: Void.self) { group in
             for payload in payloads {
                 group.addTask {
@@ -23,7 +34,8 @@ struct StdioFrameWriterTests {
 
         await writer.removeHandle()
         try pipe.fileHandleForWriting.close()
-        let output = pipe.fileHandleForReading.readDataToEndOfFile()
+        let capturedOutput = await outputStream.first { _ in true }
+        let output = try #require(capturedOutput)
         let outputString = try #require(String(bytes: output, encoding: .utf8))
         let components = outputString.components(separatedBy: "\n")
         let lines = components.dropLast().map { Data($0.utf8) }

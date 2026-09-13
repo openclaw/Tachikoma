@@ -120,7 +120,7 @@ struct StopConditionsIntegrationTests {
     @Test(.timeLimit(.minutes(1)))
     func `Timeout stop condition with streaming`() async throws {
         let clock = ManualTestClock()
-        let condition = TimeoutStopCondition(timeout: 10, now: { clock.now })
+        let condition = TimeoutStopCondition(timeout: 10) { clock.now }
         let (stream, continuation) = AsyncThrowingStream<TextStreamDelta, Error>.makeStream()
         defer { continuation.finish() }
         var iterator = stream.stopWhen(condition).makeAsyncIterator()
