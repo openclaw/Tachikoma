@@ -221,13 +221,13 @@ enum ModelCapabilitiesTests {
         }
 
         @Test
-        func `Validate settings for GPT-5 strips unsupported options`() {
+        func `Validate settings for GPT-5 preserves reasoning and strips sampling options`() {
             let settings = GenerationSettings(
                 temperature: 0.5,
                 topP: 0.8,
                 providerOptions: .init(
                     openai: .init(
-                        verbosity: .medium, // Should be removed as not supported
+                        verbosity: .medium,
                         reasoningEffort: .high,
                     ),
                 ),
@@ -237,7 +237,7 @@ enum ModelCapabilitiesTests {
 
             #expect(validated.temperature == nil) // Excluded
             #expect(validated.topP == nil) // Excluded
-            #expect(validated.providerOptions.openai?.reasoningEffort == nil) // Removed
+            #expect(validated.providerOptions.openai?.reasoningEffort == .high)
             #expect(validated.providerOptions.openai?.verbosity == .medium) // Kept
         }
 

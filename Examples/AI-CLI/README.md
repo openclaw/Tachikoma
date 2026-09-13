@@ -35,7 +35,7 @@ ai-cli --stream --model gpt-5.5 "Write a short story"
 | `-m, --model <MODEL>` | Specify the AI model to use |
 | `--api <chat\|responses>` | For OpenAI models: select API type (default: responses for GPT-5) |
 | `-s, --stream` | Stream the response in real-time |
-| `--thinking` | Show GPT-5 reasoning process (note: API currently doesn't expose actual reasoning) |
+| `--thinking` | Request and display the GPT-5 reasoning summary through the Responses API |
 | `--verbose, -v` | Show detailed debug output |
 | `--config` | Show current configuration and API key status |
 | `--help, -h` | Show help message |

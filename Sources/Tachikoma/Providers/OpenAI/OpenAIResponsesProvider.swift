@@ -37,11 +37,6 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
         false
     }
 
-    // Provider options (immutable for Sendable conformance)
-    private let reasoningEffort: ReasoningEffort = .medium
-    private let verbosity: TextVerbosity = .high // Set to high for preambles
-    private let previousResponseId: String? = nil // For conversation persistence
-
     public init(
         model: LanguageModel.OpenAI,
         configuration: TachikomaConfiguration,
@@ -95,8 +90,21 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
     }
 
     public func generateText(request: ProviderRequest) async throws -> ProviderResponse {
+        try await self.generateTextWithSummary(request: request).response
+    }
+
+    package func generateTextWithSummary(
+        request: ProviderRequest,
+    ) async throws
+        -> (response: ProviderResponse, summary: String?)
+    {
         if case .codexOAuth = self.transport {
-            return try await self.generateCodexText(request: request)
+            let response = try await self.generateCodexText(request: request)
+            let summary = response.assistantMessages.flatMap(\.content).flatMap { part -> [String] in
+                guard case let .reasoning(reasoning) = part else { return [] }
+                return reasoning.summary?.map(\.text) ?? []
+            }.joined(separator: "\n")
+            return (response, response.finishReason == .contentFilter || summary.isEmpty ? nil : summary)
         }
 
         // Build Responses API request
@@ -139,12 +147,18 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
         let decoder = JSONDecoder()
         let responsesResponse = try decoder.decode(OpenAIResponsesResponse.self, from: data)
 
-        // TODO: Store response metadata for conversation persistence
-        // Cannot mutate properties due to Sendable conformance
-        // Need to implement a different approach for maintaining conversation state
-
-        // Convert to ProviderResponse
-        return try Self.convertToProviderResponse(responsesResponse)
+        let providerResponse = try Self.convertToProviderResponse(responsesResponse)
+        let summary = responsesResponse.output?
+            .filter { $0.type == "reasoning" }
+            .flatMap { output -> [String] in
+                let summary = output.summary?.map(\.text) ?? []
+                if !summary.isEmpty {
+                    return summary
+                }
+                return output.content?.filter { $0.type == "text" }.compactMap(\.text) ?? []
+            }
+            .joined(separator: "\n") ?? ""
+        return (providerResponse, providerResponse.finishReason == .contentFilter || summary.isEmpty ? nil : summary)
     }
 
     public func streamText(request: ProviderRequest) async throws -> AsyncThrowingStream<TextStreamDelta, Error> {
@@ -697,7 +711,7 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
             toolChoice: codex && hasTools ? "auto" : nil,
             metadata: nil,
             parallelToolCalls: codex && !hasTools ? nil : (openaiOptions?.parallelToolCalls ?? true),
-            previousResponseId: openaiOptions?.previousResponseId ?? self.previousResponseId,
+            previousResponseId: openaiOptions?.previousResponseId,
             store: false,
             user: nil,
             instructions: codex ? self.codexInstructions(from: request.messages) : nil,
@@ -1270,6 +1284,3 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
         model == .chatLatest || model == .gpt5ChatLatest || self.isGPT5Model(model)
     }
 }
-
-// Configuration extensions removed - properties are immutable for Sendable conformance
-// TODO: Consider using a separate configuration object or factory pattern for customization

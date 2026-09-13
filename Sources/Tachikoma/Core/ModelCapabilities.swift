@@ -242,22 +242,22 @@ public final class ModelCapabilityRegistry: @unchecked Sendable {
             ),
             excludedParameters: ["temperature", "topP", "frequencyPenalty", "presencePenalty"],
         )
-        var gpt56Capabilities = gpt5Capabilities
-        gpt56Capabilities.supportedProviderOptions.supportsReasoningEffort = true
+        var gptReasoningCapabilities = gpt5Capabilities
+        gptReasoningCapabilities.supportedProviderOptions.supportsReasoningEffort = true
 
         self.capabilities["openai:chat-latest"] = gpt5Capabilities
         self.capabilities["openai:gpt-5-chat-latest"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5.6-sol"] = gpt56Capabilities
-        self.capabilities["openai:gpt-5.6-terra"] = gpt56Capabilities
-        self.capabilities["openai:gpt-5.6-luna"] = gpt56Capabilities
-        self.capabilities["openai:gpt-5.5"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5.4"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5.4-mini"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5.4-nano"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5-pro"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5-mini"] = gpt5Capabilities
-        self.capabilities["openai:gpt-5-nano"] = gpt5Capabilities
+        self.capabilities["openai:gpt-5.6-sol"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.6-terra"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.6-luna"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.5"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.4"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.4-mini"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5.4-nano"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5-pro"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5-mini"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-5-nano"] = gptReasoningCapabilities
 
         // Claude 4 models with thinking
         let claude4Capabilities = ModelParameterCapabilities(
