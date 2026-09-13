@@ -522,6 +522,27 @@ struct OpenAIResponsesResponse: Codable {
         let name: String?
         let arguments: String?
 
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.id = try container.decode(String.self, forKey: .id)
+            self.type = try container.decode(String.self, forKey: .type)
+            self.status = try container.decodeIfPresent(String.self, forKey: .status)
+            if self.type == "reasoning", let text = try? container.decode(String.self, forKey: .content) {
+                self.content = [OutputContent(type: "text", text: text)]
+            } else {
+                self.content = try container.decodeIfPresent([OutputContent].self, forKey: .content)
+            }
+            self.role = try container.decodeIfPresent(String.self, forKey: .role)
+            self.toolCall = try container.decodeIfPresent(ResponsesToolCall.self, forKey: .toolCall)
+            self.encryptedContent = try container.decodeIfPresent(String.self, forKey: .encryptedContent)
+            self.summary = try container.decodeIfPresent(
+                [ModelMessage.ContentPart.ReasoningContent.Summary].self, forKey: .summary,
+            )
+            self.callId = try container.decodeIfPresent(String.self, forKey: .callId)
+            self.name = try container.decodeIfPresent(String.self, forKey: .name)
+            self.arguments = try container.decodeIfPresent(String.self, forKey: .arguments)
+        }
+
         init(
             id: String,
             type: String,

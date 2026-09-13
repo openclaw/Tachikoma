@@ -13,7 +13,7 @@ struct CLIConfig {
     var modelString: String?
     var apiMode: OpenAIAPIMode? // For OpenAI models
     var stream: Bool = false
-    var showThinking: Bool = false // Show reasoning/thinking process
+    var showThinking: Bool = false // Show the provider's reasoning summary
     var verbose: Bool = false // Show detailed debug output
     var showHelp: Bool = false
     var showVersion: Bool = false
@@ -190,7 +190,7 @@ struct AICLI {
             -m, --model <MODEL>     Specify the AI model to use
             --api <API>            For OpenAI models: 'chat' or 'responses' (default: responses for GPT-5)
             -s, --stream           Stream the response (partial support)
-            --thinking             Show reasoning/thinking process (GPT-5 via Responses API)
+            --thinking             Show reasoning summary (GPT-5 via Responses API)
             --verbose, -v          Show detailed debug output
             --config               Show current configuration and exit
             -h, --help             Show this help message
@@ -213,7 +213,7 @@ struct AICLI {
             # Streaming responses
             ai-cli --stream --model claude "Write a short story"
 
-            # Show thinking process
+            # Show reasoning summary
             ai-cli --thinking --model gpt-5.5 "Solve this logic puzzle"
             ai-cli --thinking --model gpt-5 "Complex reasoning task"
 
@@ -555,7 +555,7 @@ struct AICLI {
         // Display thinking/reasoning if available (before the response)
         if config.showThinking {
             if let reasoning = reasoningText, !reasoning.isEmpty {
-                print("\n🧠 Thinking Process:")
+                print("\n🧠 Reasoning Summary:")
                 print("-------------------")
                 print(reasoning)
                 print("-------------------")
@@ -617,125 +617,15 @@ struct AICLI {
     ) async throws
         -> (response: ProviderResponse, reasoning: String?)
     {
-        let config = TachikomaConfiguration.current
-        guard let apiKey = config.getAPIKey(for: .openai) else {
-            throw TachikomaError.authenticationFailed("OpenAI API key not found")
-        }
-
-        let baseURL = config.getBaseURL(for: .openai) ?? "https://api.openai.com/v1"
-
-        // Build request body for Responses API
-        let requestBody: [String: Any] = [
-            "model": model.modelId,
-            "input": [["role": "user", "content": query]],
-            "stream": false,
-            "reasoning": [
-                "effort": "high", // High effort for detailed reasoning
-            ],
-        ]
-
-        // Make the API call
-        let url = URL(string: "\(baseURL)/responses")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TachikomaError.networkError(NSError(domain: "Invalid response", code: 0))
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw TachikomaError.apiError("Responses API Error: \(errorText)")
-        }
-
-        // Parse the response
-        guard
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let outputs = json["output"] as? [[String: Any]] else
-        {
-            throw TachikomaError.apiError("Invalid response format")
-        }
-
-        // Extract reasoning and message
-        var reasoningText: String?
-        var messageText = ""
-        var usage: Usage?
-
-        for output in outputs {
-            let outputType = output["type"] as? String ?? ""
-
-            if outputType == "reasoning" {
-                // Extract reasoning text if available
-                if let summary = output["summary"] as? [[String: Any]] {
-                    let reasoningParts = summary.compactMap { item -> String? in
-                        if let text = item["text"] as? String {
-                            return text
-                        }
-                        return nil
-                    }
-                    if !reasoningParts.isEmpty {
-                        reasoningText = reasoningParts.joined(separator: "\n")
-                    }
-                }
-
-                // If no summary, try content array.
-                if reasoningText == nil || reasoningText?.isEmpty == true {
-                    if let contentArray = output["content"] as? [[String: Any]] {
-                        let reasoningParts = contentArray.compactMap { item -> String? in
-                            if
-                                item["type"] as? String == "text",
-                                let text = item["text"] as? String
-                            {
-                                return text
-                            }
-                            return nil
-                        }
-                        if !reasoningParts.isEmpty {
-                            reasoningText = reasoningParts.joined(separator: "\n")
-                        }
-                    }
-                }
-
-                // If still no reasoning, try raw content string
-                if reasoningText == nil || reasoningText?.isEmpty == true {
-                    if let content = output["content"] as? String {
-                        reasoningText = content
-                    }
-                }
-            } else if outputType == "message" {
-                // Extract message content
-                if let contents = output["content"] as? [[String: Any]] {
-                    for content in contents {
-                        if
-                            content["type"] as? String == "output_text",
-                            let text = content["text"] as? String
-                        {
-                            messageText = text
-                        }
-                    }
-                }
-            }
-        }
-
-        // Extract usage if available
-        if let usageData = json["usage"] as? [String: Any] {
-            let inputTokens = (usageData["input_tokens"] as? Int) ?? (usageData["prompt_tokens"] as? Int) ?? 0
-            let outputTokens = (usageData["output_tokens"] as? Int) ?? (usageData["completion_tokens"] as? Int) ?? 0
-            usage = Usage(inputTokens: inputTokens, outputTokens: outputTokens)
-        }
-
-        let providerResponse = ProviderResponse(
-            text: messageText,
-            usage: usage,
-            finishReason: .stop,
-        )
-
-        return (providerResponse, reasoningText)
+        let provider = try OpenAIResponsesProvider(model: model, configuration: .current)
+        let result = try await provider.generateTextWithSummary(request: ProviderRequest(
+            messages: [.user(query)],
+            tools: nil,
+            settings: GenerationSettings(
+                providerOptions: ProviderOptions(openai: OpenAIOptions(reasoningEffort: .high)),
+            ),
+        ))
+        return (result.response, result.summary)
     }
 
     static func executeStreamingRequest(model: LanguageModel, config _: CLIConfig, query: String) async throws {

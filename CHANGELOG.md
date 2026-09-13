@@ -7,6 +7,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ### Fixed
 - LM Studio now preserves tool calls, result IDs, and image URLs in conversation history so multi-step tool generation can complete.
 - Stream wrappers and provider requests now cancel owned work when consumers stop; UI streams finish on EOF, and cache/retry tasks release their owners and cancellation handlers.
+- CLI `--thinking` now requests and displays reasoning summaries through the shared Responses provider, preserves filtered responses, and reports invalid endpoints without crashing; GPT-5 capability validation retains requested reasoning effort.
 - JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
 - MCP HTTP notifications now accept empty acknowledgements and preserve session headers; streamed responses skip progress events and match request IDs, while SSE requests share the SDK connection for sending, receiving, cancellation, and negotiated protocol metadata.
 
