@@ -70,16 +70,19 @@ struct StopConditionsTests {
     // MARK: - Timeout Stop Condition Tests
 
     @Test
-    func `TimeoutStopCondition should stop after duration`() async throws {
-        let condition = TimeoutStopCondition(timeout: 0.1) // 100ms
+    func `TimeoutStopCondition should stop after duration`() async {
+        let clock = ManualTestClock()
+        let condition = TimeoutStopCondition(timeout: 10) { clock.now }
 
-        // Should not stop immediately
         #expect(await condition.shouldStop(text: "Hello", delta: nil) == false)
+        clock.advance(by: 9)
+        #expect(await condition.shouldStop(text: "Hello", delta: nil) == false)
+        clock.advance(by: 1)
+        #expect(await condition.shouldStop(text: "Hello", delta: nil) == true)
 
-        // Wait for timeout
-        try await Task.sleep(nanoseconds: 150_000_000) // 150ms
-
-        // Should stop after timeout
+        await condition.reset()
+        #expect(await condition.shouldStop(text: "Hello", delta: nil) == false)
+        clock.advance(by: 10)
         #expect(await condition.shouldStop(text: "Hello", delta: nil) == true)
     }
 
@@ -180,25 +183,18 @@ struct StopConditionsTests {
         #expect(!collectedText.contains("ignored"))
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func `Stop conditions finish immediately after local match`() async throws {
-        let stream = AsyncThrowingStream<TextStreamDelta, Error> { continuation in
-            Task {
-                continuation.yield(TextStreamDelta(type: .textDelta, content: "STOP"))
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                continuation.yield(TextStreamDelta(type: .textDelta, content: "late"))
-                continuation.yield(TextStreamDelta(type: .done, finishReason: .length))
-                continuation.finish()
-            }
-        }
+        let (stream, continuation) = AsyncThrowingStream<TextStreamDelta, Error>.makeStream()
+        defer { continuation.finish() }
+        continuation.yield(.text("STOP"))
 
-        let start = Date()
+        // The source stays open until the stopped stream has completed.
         var received: [TextStreamDelta] = []
         for try await delta in stream.stopWhen(StringStopCondition("STOP")) {
             received.append(delta)
         }
 
-        #expect(Date().timeIntervalSince(start) < 0.5)
         #expect(received.map(\.content).compactMap(\.self) == ["STOP"])
         #expect(received.last?.type == .done)
         #expect(received.last?.finishReason == .stop)

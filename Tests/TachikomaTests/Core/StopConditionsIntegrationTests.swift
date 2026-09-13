@@ -117,44 +117,28 @@ struct StopConditionsIntegrationTests {
         #expect(!result.contains("Token 50"))
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func `Timeout stop condition with streaming`() async throws {
-        // Create a slow stream
-        let stream = AsyncThrowingStream<TextStreamDelta, Error> { continuation in
-            let producer = Task {
-                do {
-                    for i in 1...10 {
-                        continuation.yield(TextStreamDelta(type: .textDelta, content: "Chunk \(i) "))
-                        try await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
-                    }
-                    continuation.yield(TextStreamDelta(type: .done))
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                producer.cancel()
-            }
-        }
+        let clock = ManualTestClock()
+        let condition = TimeoutStopCondition(timeout: 10) { clock.now }
+        let (stream, continuation) = AsyncThrowingStream<TextStreamDelta, Error>.makeStream()
+        defer { continuation.finish() }
+        var iterator = stream.stopWhen(condition).makeAsyncIterator()
 
-        // Stop after 0.3 seconds
-        let stoppedStream = stream.stopWhen(TimeoutStopCondition(timeout: 0.3))
+        continuation.yield(.text("first"))
+        #expect(try await iterator.next()?.content == "first")
+        clock.advance(by: 9)
+        continuation.yield(.text("before deadline"))
+        #expect(try await iterator.next()?.content == "before deadline")
+        clock.advance(by: 1)
+        continuation.yield(.text("at deadline"))
+        continuation.yield(.text("ignored"))
+        #expect(try await iterator.next()?.content == "at deadline")
 
-        let startTime = Date()
-        var chunkCount = 0
-        for try await delta in stoppedStream {
-            if case .textDelta = delta.type {
-                chunkCount += 1
-            }
-        }
-        let elapsed = Date().timeIntervalSince(startTime)
-
-        // Should have stopped after timeout
-        #expect(elapsed < 0.5) // Should stop around 0.3s
-        #expect(chunkCount < 10) // Should not have all chunks
+        let terminal = try await iterator.next()
+        #expect(terminal?.type == .done)
+        #expect(terminal?.finishReason == .stop)
+        #expect(try await iterator.next() == nil)
     }
 
     @Test
