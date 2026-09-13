@@ -27,34 +27,39 @@ jobs:
         include:
           - name: macOS 15
             os: macos-15
+            swift: '6.2.4'
           - name: Ubuntu 24.04
             os: ubuntu-24.04
+            swift: '6.2.4'
+          - name: Ubuntu 24.04, Swift 6.3.3
+            os: ubuntu-24.04
+            swift: '6.3.3'
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Xcode 26.3
         if: runner.os == 'macOS'
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: '26.3'
 
-      - name: Install Swift 6.2.4
+      - name: Install Swift ${{ matrix.swift }}
         if: runner.os == 'Linux'
-        uses: SwiftyLab/setup-swift@v1
+        uses: SwiftyLab/setup-swift@38f54a76b70d989321de9dc7c840618c08cf56e9 # v1.14.0
         with:
-          swift-version: '6.2.4'
+          swift-version: ${{ matrix.swift }}
 
       - name: Cache Swift Package Manager
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             .build
             ~/.cache/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-swift-${{ matrix.swift }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-${{ runner.arch }}-swift-${{ matrix.swift }}-spm-
 
       - name: Verify locked dependencies
         run: |
@@ -76,15 +81,19 @@ jobs:
             --skip OpenAIAudioProviderTests \
             --skip ProviderEndToEndTests
 
+      - name: Typecheck guide examples
+        if: runner.os == 'macOS'
+        run: python3 scripts/check-doc-examples.py
+
   package:
     name: Package contract
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Xcode 26.3
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: '26.3'
 
@@ -102,17 +111,17 @@ jobs:
   style:
     name: Swift style
     runs-on: macos-15
-    env:
-      SWIFTFORMAT_VERSION: 0.63.0
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install linters
-        run: brew install mint swiftlint
+      - name: Install pinned linters
+        run: |
+          scripts/install-ci-tools.sh "$RUNNER_TEMP/tachikoma-tools"
+          echo "$RUNNER_TEMP/tachikoma-tools" >> "$GITHUB_PATH"
 
       - name: SwiftLint
         run: swiftlint lint --config .swiftlint.yml --strict
 
       - name: SwiftFormat
-        run: mint run "nicklockwood/SwiftFormat@${SWIFTFORMAT_VERSION}" swiftformat --lint .
+        run: swiftformat --lint .

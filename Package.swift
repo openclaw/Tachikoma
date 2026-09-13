@@ -114,7 +114,7 @@ let package = Package(
                 .process("CLITests/__snapshots__/config_init.txt"),
                 .process("CLITests/README.md"),
             ],
-            swiftSettings: tachikomaTestSwiftSettings),
+            swiftSettings: tachikomaSwiftSettings),
 
         // MCP tests
         .testTarget(
@@ -124,7 +124,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
             ],
             path: "Tests/TachikomaMCPTests",
-            swiftSettings: tachikomaTestSwiftSettings),
+            swiftSettings: tachikomaSwiftSettings),
         
         // GPT-5 CLI executable target
         .executableTarget(
@@ -159,14 +159,7 @@ let package = Package(
     ],
     swiftLanguageModes: [.v6])
 
-// Common Swift settings for all targets
-let commonSwiftSettings: [SwiftSetting] = [
-    .enableExperimentalFeature("StrictConcurrency"),
+let tachikomaSwiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-]
-
-let tachikomaSwiftSettings = commonSwiftSettings
-let tachikomaTestSwiftSettings = tachikomaSwiftSettings + [
-    .enableExperimentalFeature("SwiftTesting"),
 ]

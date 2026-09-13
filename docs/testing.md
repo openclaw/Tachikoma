@@ -8,7 +8,7 @@ TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --parallel
 
 This runs the unit and mocked provider suites without API keys or external services. Provider fixtures use URLProtocol and injected sessions; MCP lifecycle fixtures start local child processes. `TestHelpers` creates isolated provider configurations and mock factory overrides.
 
-CI runs the complete suite on macOS. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
+CI runs the complete suite on macOS with Swift 6.2.4. Linux covers both Swift 6.2.4 and Swift 6.3.3. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
 
 ## Live provider smoke tests
 
@@ -49,7 +49,9 @@ xcrun llvm-cov report \
   -instr-profile=.build/debug/codecov/default.profdata
 ```
 
-Use the binary/profile paths printed by your toolchain if its SwiftPM output layout differs. `scripts/core-coverage.sh` targets per-file objects in `Tachikoma.build`.
+Use the binary/profile paths printed by your toolchain if its SwiftPM output layout differs. `scripts/core-coverage.sh` selects the debug build path and supports both per-file objects in `Tachikoma.build` and the newer `Tachikoma.o` module object.
+
+On macOS, `python3 scripts/check-doc-examples.py` compiles the Swift snippets in the Azure, GPT-OSS, LM Studio, and tool guides plus the Realtime source example against the built module. The check uses the package's declared macOS minimum and fails on compiler errors.
 
 ## Regression fixtures
 
