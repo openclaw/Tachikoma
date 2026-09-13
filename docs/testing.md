@@ -1,80 +1,65 @@
-# Tachikoma Testing Guide
+# Testing
 
-This repository ships with multiple tiers of tests so we can move fast locally while still validating live provider behavior on demand. This document explains what each tier covers, which environment variables it depends on, and how to run it.
+## Hermetic suite
 
-## 1. Hermetic default suite (unit + mocked E2E)
+```sh
+TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --parallel
+```
 
-- **Command**: `TACHIKOMA_TEST_MODE=mock swift test --parallel`
-- **What runs**: every unit test plus `ProviderEndToEndTests`, `GenerationTests`, audio helpers, etc.
-- **Network**: fully mocked via `MockURLProtocol` and the provider `URLSession` injection plumbing; no internet access or API keys required.
-- **When to use**: day-to-day development, CI, and coverage collection (`--enable-code-coverage`).
+This runs the unit and mocked provider suites without API keys or external services. Provider fixtures use URLProtocol and injected sessions; MCP lifecycle fixtures start local child processes. `TestHelpers` creates isolated provider configurations and mock factory overrides.
 
-### Coverage pass
+CI runs the complete suite on macOS. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
 
-```bash
-tmux new-session -d -s tachicoverage 'cd Tachikoma && \
-  TACHIKOMA_TEST_MODE=mock swift test --parallel --enable-code-coverage \
-  2>&1 | tee /tmp/tachikoma-swift-test.log'
+## Live provider smoke tests
 
-# After the run finishes:
+Configure the credentials for the providers you intend to test, then run:
+
+```sh
+INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter ProviderIntegrationTests
+```
+
+The compile-time flag includes the integration suite; `INTEGRATION_TESTS=1` enables it. The suite requires at least one eligible provider credential. The manual **Live Providers** workflow runs the same command on the default branch and rejects an empty credential set before building.
+
+The Codex OAuth vision smoke also requires `TACHIKOMA_INTEGRATION_PROFILE_DIR` naming a profile with usable OAuth credentials and no higher-priority OpenAI API key. Credentials should be supplied through the environment or configured profile, never committed to fixtures.
+
+## Environment
+
+| Variable | Purpose |
+| --- | --- |
+| `TACHIKOMA_TEST_MODE=mock` | Selects mock provider/audio behavior in test helpers. |
+| `TACHIKOMA_DISABLE_API_TESTS=true` | Disables real provider tests even if credentials are available. |
+| `INTEGRATION_TESTS=1` | Enables the compiled live-provider suite. |
+| `TACHIKOMA_INTEGRATION_PROFILE_DIR` | Profile for the opt-in OAuth vision smoke. |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `MISTRAL_API_KEY`, `GROQ_API_KEY`, `X_AI_API_KEY` / `XAI_API_KEY` | Live provider credentials. |
+| `OPENROUTER_REFERER`, `OPENROUTER_TITLE` | Optional OpenRouter request headers. |
+| `REPLICATE_PREFERRED_OUTPUT=turbo` | Enables the Replicate `Prefer: wait=false` header. |
+
+## Focused tests and coverage
+
+```sh
+TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --filter StopConditions
+TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --parallel --enable-code-coverage
+```
+
+On toolchains that produce the traditional combined macOS test bundle, inspect coverage with:
+
+```sh
 xcrun llvm-cov report \
   .build/debug/TachikomaPackageTests.xctest/Contents/MacOS/TachikomaPackageTests \
   -instr-profile=.build/debug/codecov/default.profdata
 ```
 
-## 2. Live provider smoke tests
+Use the binary/profile paths printed by your toolchain if its SwiftPM output layout differs. `scripts/core-coverage.sh` targets per-file objects in `Tachikoma.build`.
 
-- **Command**: `INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter ProviderIntegrationTests`
-- **What runs**: `ProviderIntegrationTests` (OpenAI, Anthropic, Google, Groq, Grok, Mistral) plus any suites that check `ProcessInfo.processInfo.environment` for real keys.
-- **Required env vars**:
-  - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (legacy `GOOGLE_API_KEY`), `MISTRAL_API_KEY`, `GROQ_API_KEY`, `X_AI_API_KEY` / `XAI_API_KEY`, etc.
-  - `TACHIKOMA_INTEGRATION_PROFILE_DIR` enables the Codex OAuth vision smoke test and must name a profile directory containing usable OAuth credentials without a higher-priority OpenAI API key.
-- **Notes**: wields actual HTTP calls and tool invocations, so only run when keys are set and you’re ready to burn quota. Requires the compile-time flag `-DLIVE_PROVIDER_TESTS`; without it the integration suite is excluded from the test build.
+## Regression fixtures
 
-### Example
-
-```bash
-source ~/.profile  # ensure keys are exported
-tmux new-session -d -s tachitest 'cd Tachikoma && \
-  INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS \
-  --filter ProviderIntegrationTests \
-  2>&1 | tee /tmp/tachikoma-swift-test.log'
-```
-
-Maintainers can run the same credentialed smoke suite from the manual **Live Providers** GitHub Actions workflow. The workflow fails before building when no provider secret is configured, so an empty credential set cannot produce a misleading green run.
-
-## 3. Provider-specific real workflows
-
-Google generation and streaming reject empty, whitespace-only, and malformed configured base URLs with `TachikomaError.invalidConfiguration`. Custom provider base paths retain percent-encoded segments such as `team%2Fblue` when endpoint paths are appended.
-
-Some suites rely on live credentials even without `INTEGRATION_TESTS`, e.g. CLI workflows or manual reproduction of regressions.
-
-- `Tests/TachikomaTests/GrokDebugTest.swift` only runs fully when `TACHIKOMA_TEST_MODE` is not `mock` *and* a Grok key is set.
-- Audio/transcription suites honor `TACHIKOMA_TEST_MODE=mock`; unset it if you explicitly want to hit OpenAI’s audio endpoints.
-
-## 4. Environment knobs
-
-| Variable | Purpose |
+| Area | Location |
 | --- | --- |
-| `TACHIKOMA_TEST_MODE=mock` | Forces provider factory overrides and mock audio providers; default in CI. |
-| `INTEGRATION_TESTS=1` | Enables the live-provider suite. |
-| `TACHIKOMA_DISABLE_API_TESTS=true` | Hard-disables real providers even if keys are present (useful on shared CI runners). |
-| `TACHIKOMA_INTEGRATION_PROFILE_DIR` | Enables the Codex OAuth vision smoke test against the named credential profile. |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc. | Standard per-provider keys pulled by `TestHelpers.resolve` (Gemini also accepts `GOOGLE_API_KEY`). |
-| `OPENROUTER_REFERER`, `OPENROUTER_TITLE` | Optional headers for OpenRouter (defaults provided). |
-| `REPLICATE_PREFERRED_OUTPUT=turbo` | Adds `Prefer: wait=false` to Replicate calls during tests. |
+| Provider requests, responses, and schemas | `Tests/TachikomaTests/Providers/ProviderEndToEndTests.swift` |
+| Responses API | `Tests/TachikomaTests/Providers/OpenAIResponsesProviderTests.swift` |
+| Base-URL validation and encoded paths | `Tests/TachikomaTests/Providers/InvalidProviderBaseURLTests.swift` |
+| Generation, history, stop conditions | `Tests/TachikomaTests/Core/` |
+| Schema/value bridges and transport lifecycle | `Tests/TachikomaMCPTests/` |
+| Live providers | `Tests/TachikomaTests/Providers/Integration/ProviderIntegrationTests.swift` |
 
-## 5. Troubleshooting tips
-
-Generation timeouts use seconds; MCP health-check timeouts use milliseconds. Zero remains an immediate deadline that races the operation. Negative, non-finite, and overflowing durations are rejected before starting the timed operation. An already-connected MCP server returns its cached health without starting a timer.
-
-- **Missing API key errors**: confirm `source ~/.profile` (or your secrets manager) before launching `swift test`. The helper prints the provider name in the exception message.
-- **Hanging tests**: rerun inside `tmux` and watch `/tmp/tachikoma-swift-test.log` so the log survives a disconnected shell.
-- **Coverage gaps**: run the coverage command above; the report lists the lowest-covered files so you can target new tests.
-
-## 6. File map
-
-- `Tests/TachikomaTests/Providers/ProviderEndToEndTests.swift` – mocked request/response coverage for every provider, including OpenRouter/Together/Replicate and the OpenAI/Anthropic compatible adapters.
-- `Tests/TachikomaTests/Providers/Integration/ProviderIntegrationTests.swift` – live smoke tests gated by `INTEGRATION_TESTS` & env keys.
-- `Tests/TachikomaTests/TestHelpers/TestHelpers.swift` – central helper that prepares configurations, injects mock providers, and toggles `TACHIKOMA_TEST_MODE`.
-- `Tests/TachikomaTests/Support/MockURLProtocol.swift` – URLProtocol shim used by hermetic suites.
+Generation timeouts use seconds; MCP health-check timeouts use milliseconds. Zero is an immediate deadline that races the operation. Negative, non-finite, and overflowing values are rejected before starting the timed operation. Timeout stop conditions are checked as text deltas arrive; they are not an idle-network timer.

@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+- Replaced outdated Azure, LM Studio, GPT-OSS, and tool guides with current SDK examples and a maintained Realtime sample.
+
 ## 0.4.2 - 2026-09-11
 
 **Highlights:** Fix legacy log-handler forwarding and improve compiler compatibility with Swift Log 1.15.1.
