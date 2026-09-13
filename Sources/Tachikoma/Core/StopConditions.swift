@@ -140,19 +140,26 @@ public actor TokenCountStopCondition: StopCondition {
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 public actor TimeoutStopCondition: StopCondition {
     private let timeout: TimeInterval
+    private let now: @Sendable () -> Date
     private var startTime: Date?
 
     public init(timeout: TimeInterval) {
         self.timeout = timeout
+        self.now = { Date() }
+    }
+
+    init(timeout: TimeInterval, now: @escaping @Sendable () -> Date) {
+        self.timeout = timeout
+        self.now = now
     }
 
     public func shouldStop(text _: String, delta _: String?) async -> Bool {
         if startTime == nil {
-            startTime = Date()
+            startTime = self.now()
         }
 
         guard let startTime else { return false }
-        return Date().timeIntervalSince(startTime) >= self.timeout
+        return self.now().timeIntervalSince(startTime) >= self.timeout
     }
 
     public func reset() async {
