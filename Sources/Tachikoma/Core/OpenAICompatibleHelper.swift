@@ -606,12 +606,12 @@ struct OpenAICompatibleHelper {
         return OpenAIThinkingConfiguration(type: "enabled", keep: "all")
     }
 
-    private static func convertMessages(
+    static func convertMessages(
         _ messages: [ModelMessage],
-        replayOpenRouterReasoningForModel modelId: String?,
-        replayOpenRouterReasoningForBaseURL baseURL: String?,
-        replayKimiReasoningForModel kimiModelId: String?,
-        replayKimiReasoningForBaseURL kimiBaseURL: String?,
+        replayOpenRouterReasoningForModel modelId: String? = nil,
+        replayOpenRouterReasoningForBaseURL baseURL: String? = nil,
+        replayKimiReasoningForModel kimiModelId: String? = nil,
+        replayKimiReasoningForBaseURL kimiBaseURL: String? = nil,
     ) throws
         -> [OpenAIChatMessage]
     {

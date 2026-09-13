@@ -59,7 +59,7 @@ for try await delta in response.stream {
 }
 ```
 
-The adapter can send tool definitions, but its current history conversion drops structured tool calls and results. Full multi-step tool conversations remain a known limitation of this adapter. See the [model catalog](models.md) for provider selection.
+The adapter sends tool definitions and preserves assistant tool calls and matching tool results across generation steps. Use a loaded model that supports tool calling. Message conversion uses the shared OpenAI-compatible format, including image URLs. See the [tool guide](tools.md) for multi-step generation and the [model catalog](models.md) for provider selection.
 
 ## Operational limits
 
