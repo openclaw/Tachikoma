@@ -198,6 +198,7 @@ enum ProviderTests {
                 .minimaxCN,
                 .kimi,
                 .ollama,
+                .lmstudio,
                 .azureOpenAI,
             ]
             #expect(Provider.standardProviders == expected)
