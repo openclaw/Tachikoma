@@ -279,7 +279,8 @@ public final class SSETransport: MCPTransport {
                 try Task.checkCancellation()
                 guard await self.state.isActiveReader(generation: generation) else { return }
                 for message in SSEMessageDecoder.messages(from: data) {
-                    guard let id = try? JSONDecoder().decode(ResponseIdentity.self, from: message).id else { continue }
+                    guard
+                        let id = try? JSONDecoder().decode(JSONRPCResponseHeader.self, from: message).responseID else { continue }
                     let requestID: Int? = switch id {
                     case let .int(value): value
                     case let .string(value): Int(value)
@@ -303,34 +304,5 @@ public final class SSETransport: MCPTransport {
     private func failConnection(_ error: Swift.Error, generation: UInt64) async {
         let removal = await self.state.removeConnection(error, readerGeneration: generation)
         await removal.transport?.disconnect()
-    }
-}
-
-private struct ResponseIdentity: Decodable { let id: JSONRPCID? }
-
-enum SSEMessageDecoder {
-    static func messages(from data: Data) -> [Data] {
-        if (try? JSONSerialization.jsonObject(with: data)) != nil {
-            return [data]
-        }
-        // The SDK emits decoded JSON on Apple platforms and buffered SSE bodies on Linux.
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-        var messages: [Data] = []
-        var lines: [String] = []
-        for line in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
-            if line.isEmpty {
-                if !lines.isEmpty {
-                    messages.append(Data(lines.joined(separator: "\n").utf8))
-                    lines.removeAll()
-                }
-            } else if line.hasPrefix("data:") {
-                var value = line.dropFirst(5)
-                if value.first == " " {
-                    value = value.dropFirst()
-                }
-                lines.append(String(value))
-            }
-        }
-        return messages
     }
 }

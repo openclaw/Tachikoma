@@ -10,9 +10,10 @@ struct SSERequestTests {
     struct Params: Encodable { let value = "fixture" }
     struct Reply: Decodable { let text: String }
 
-    @Test(.timeLimit(.minutes(1)))
-    func `POST responses arrive through the same SDK connection`() async throws {
+    @Test(.timeLimit(.minutes(1)), arguments: [0, 1, 2])
+    func `POST responses arrive through the same SDK connection`(framing: Int) async throws {
         SSEFixtureProtocol.reset()
+        SSEFixtureProtocol.framing = framing
         let transport = self.transport()
         try await transport.connect(config: MCPServerConfig(
             transport: "sse", command: "https://sse-fixture.test/mcp",
@@ -72,16 +73,42 @@ struct SSERequestTests {
         #expect(await transport.underlyingSDKTransport() == nil)
     }
 
-    @Test
-    func `SDK JSON and buffered Linux SSE preserve complete messages`() throws {
+    @Test(arguments: ["\n", "\r\n", "\r"])
+    func `SDK JSON and buffered Linux SSE preserve complete messages`(lineEnding: String) throws {
         let message = Data(#"{"jsonrpc":"2.0","id":1,"result":{"text":"event: data: text"}}"#.utf8)
         #expect(SSEMessageDecoder.messages(from: message) == [message])
         let text = try #require(String(data: message, encoding: .utf8))
-        let framed = Data("event: message\r\ndata: \(text)\r\n\r\n".utf8)
+        let framed = Data("event: message\(lineEnding)data: \(text)\(lineEnding)\(lineEnding)".utf8)
         #expect(SSEMessageDecoder.messages(from: framed) == [message])
         let multiline = Data("data: {\"id\":1,\ndata: \"result\":{}}\n\n".utf8)
         let decoded = try #require(SSEMessageDecoder.messages(from: multiline).first)
         #expect(try JSONSerialization.jsonObject(with: decoded) is [String: Any])
+    }
+
+    @Test
+    func `Batched messages preserve nested strings and numeric precision`() throws {
+        let batch = Data(
+            #"""
+            [
+              {"id":1,"result":{"text":"comma, quote: \" and slash: \\","nested":[1,{"value":"[x],y"}]}},
+              {"id":2,"result":{"value":1.12345678901234567890123456789}}
+            ]
+            """#.utf8,
+        )
+        let messages = SSEMessageDecoder.jsonMessages(from: batch)
+        try #require(messages.count == 2)
+        struct TextResult: Decodable { let text: String }
+        struct NumberResult: Decodable { let value: Decimal }
+        struct Reply<T: Decodable>: Decodable { let id: Int
+            let result: T
+        }
+        let first = try JSONDecoder().decode(Reply<TextResult>.self, from: messages[0])
+        let second = try JSONDecoder().decode(Reply<NumberResult>.self, from: messages[1])
+        #expect(first.id == 1)
+        #expect(first.result.text == "comma, quote: \" and slash: \\")
+        #expect(second.id == 2)
+        #expect(second.result.value == Decimal(string: "1.12345678901234567890123456789"))
+        #expect(SSEMessageDecoder.jsonMessages(from: Data("[]".utf8)).isEmpty)
     }
 
     private func transport() -> SSETransport {
@@ -104,6 +131,12 @@ private final class SSEFixtureProtocol: URLProtocol {
     private nonisolated(unsafe) static var storedRequests: [Request] = []
     private nonisolated(unsafe) static var storedHold: (@Sendable () -> Void)?
     private nonisolated(unsafe) static var storedStop: (@Sendable () -> Void)?
+    private nonisolated(unsafe) static var storedFraming = 0
+    static var framing: Int {
+        get { self.lock.withLock { self.storedFraming } }
+        set { self.lock.withLock { self.storedFraming = newValue } }
+    }
+
     static var requests: [Request] {
         self.lock.withLock { self.storedRequests }
     }
@@ -122,6 +155,7 @@ private final class SSEFixtureProtocol: URLProtocol {
         self.lock.withLock { self.storedRequests.removeAll()
             self.storedHold = nil
             self.storedStop = nil
+            self.storedFraming = 0
         }
     }
 
@@ -149,21 +183,34 @@ private final class SSEFixtureProtocol: URLProtocol {
         }
         let code: Int
         let data: Data
+        var contentType = "application/json"
         if self.request.httpMethod == "GET" {
             code = 405
             data = Data()
         } else if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any], let id = json["id"] {
             code = 200
-            data = (try? JSONSerialization.data(withJSONObject: [
+            let reply = (try? JSONSerialization.data(withJSONObject: [
                 "jsonrpc": "2.0", "id": id, "result": ["text": "event: and data: are ordinary response text"],
             ])) ?? Data()
+            if Self.framing == 0 {
+                data = reply
+            } else {
+                let request = "{\"jsonrpc\":\"2.0\",\"id\":\(id),\"method\":\"fixture/server\",\"params\":{}}"
+                guard let response = String(data: reply, encoding: .utf8) else {
+                    self.client?.urlProtocol(self, didFailWithError: URLError(.cannotDecodeContentData))
+                    return
+                }
+                let payloads = Self.framing == 1 ? [request, response] : ["[\(request),\(response)]"]
+                data = Data(payloads.map { "event: message\ndata: \($0)\n\n" }.joined().utf8)
+                contentType = "text/event-stream"
+            }
         } else {
             code = 202
             data = Data()
         }
         guard
             let response = HTTPURLResponse(url: url, statusCode: code, httpVersion: nil, headerFields: [
-                "Content-Type": "application/json", "Mcp-Session-Id": "fixture-session",
+                "Content-Type": contentType, "Mcp-Session-Id": "fixture-session",
             ]) else { return }
         self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         self.client?.urlProtocol(self, didLoad: data)

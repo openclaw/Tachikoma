@@ -85,10 +85,12 @@ struct HTTPTransportTests {
         let requests = HTTPRequestCapture()
         HTTPFixtureProtocol.handler = { request in
             requests.append(request)
+            let body = try? JSONSerialization.jsonObject(with: self.body(request)) as? [String: Any]
+            let id = body?["id"] as? Int ?? 0
             return (
                 200,
                 ["Content-Type": "application/json", "Mcp-Session-Id": "fixture-session"],
-                Data(#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#.utf8),
+                Data("{\"jsonrpc\":\"2.0\",\"id\":\(id),\"result\":{\"ok\":true}}".utf8),
             )
         }
         defer { HTTPFixtureProtocol.handler = nil }
@@ -113,6 +115,52 @@ struct HTTPTransportTests {
         try await transport.sendNotification(method: "notifications/initialized", params: Params())
         #expect(requests.snapshot.last?.value(forHTTPHeaderField: "Mcp-Session-Id") == nil)
         #expect(requests.snapshot.last?.value(forHTTPHeaderField: "MCP-Protocol-Version") == nil)
+        await transport.disconnect()
+    }
+
+    @Test(arguments: [false, true])
+    func `HTTP SSE responses skip other messages and decode the matching multiline result`(batched: Bool) async throws {
+        HTTPFixtureProtocol.handler = { request in
+            let body = try? JSONSerialization.jsonObject(with: self.body(request)) as? [String: Any]
+            guard let id = body?["id"] as? Int else { return nil }
+            let messages = [
+                #"{"jsonrpc":"2.0","method":"notifications/progress","params":{"progress":1}}"#,
+                "{\"jsonrpc\":\"2.0\",\"id\":\(id),\"method\":\"fixture/server\",\"params\":{}}",
+                #"{"jsonrpc":"2.0","id":-1,"result":{"unrelated":"value"}}"#,
+                "{\"jsonrpc\":\"2.0\",\"id\":\(id),\n\"result\":{\"ok\":true}}",
+            ]
+            let payloads = batched ? ["[\(messages.joined(separator: ","))]"] : messages
+            let events = payloads.map { payload in
+                "event: message\n" + payload.components(separatedBy: "\n").map { "data: \($0)" }
+                    .joined(separator: "\n") + "\n\n"
+            }.joined()
+            return (200, ["Content-Type": "text/event-stream; charset=utf-8"], Data(events.utf8))
+        }
+        defer { HTTPFixtureProtocol.handler = nil }
+        let transport = self.transport()
+        try await transport.connect(config: MCPServerConfig(
+            transport: "http",
+            command: "https://http-fixture.test/mcp",
+        ))
+        let reply: Reply = try await transport.sendRequest(method: "fixture", params: Params())
+        #expect(reply.ok)
+        await transport.disconnect()
+    }
+
+    @Test
+    func `HTTP responses must match the requested id`() async throws {
+        HTTPFixtureProtocol.handler = { _ in
+            (200, ["Content-Type": "application/json"], Data(#"{"jsonrpc":"2.0","id":-1,"result":{"ok":true}}"#.utf8))
+        }
+        defer { HTTPFixtureProtocol.handler = nil }
+        let transport = self.transport()
+        try await transport.connect(config: MCPServerConfig(
+            transport: "http",
+            command: "https://http-fixture.test/mcp",
+        ))
+        await #expect(throws: MCPError.invalidResponse) {
+            let _: Reply = try await transport.sendRequest(method: "fixture", params: Params())
+        }
         await transport.disconnect()
     }
 

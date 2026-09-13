@@ -11,7 +11,16 @@ struct JSONRPCResponse<R: Decodable>: Decodable {
     let id: JSONRPCID?
 }
 
-enum JSONRPCID: Decodable {
+struct JSONRPCResponseHeader: Decodable {
+    let id: JSONRPCID?
+    let method: String?
+
+    var responseID: JSONRPCID? {
+        self.method == nil ? self.id : nil
+    }
+}
+
+enum JSONRPCID: Decodable, Equatable {
     case int(Int)
     case string(String)
     case null
@@ -47,15 +56,4 @@ struct HTTPJSONRPCRequest<P: Encodable>: Encodable {
     let method: String
     let params: P
     let id: Int
-}
-
-struct HTTPJSONRPCResponse<R: Decodable>: Decodable {
-    let jsonrpc: String
-    let result: R?
-    let error: HTTPJSONRPCError?
-    let id: Int?
-}
-
-struct HTTPJSONRPCError: Decodable { let code: Int
-    let message: String
 }

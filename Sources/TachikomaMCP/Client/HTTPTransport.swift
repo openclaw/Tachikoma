@@ -73,24 +73,26 @@ public final class HTTPTransport: MCPTransport {
     public func sendRequest<R: Decodable>(method: String, params: some Encodable) async throws -> R {
         let request = HTTPJSONRPCRequest(method: method, params: params, id: Int.random(in: 1...Int(Int32.max)))
         let (data, response) = try await self.post(body: JSONEncoder().encode(request))
-        let payload: Data
-        if response.value(forHTTPHeaderField: "Content-Type")?.contains("text/event-stream") == true {
-            guard
-                let text = String(data: data, encoding: .utf8),
-                let line = text.split(separator: "\n").first(where: { $0.hasPrefix("data:") }) else
-            {
-                throw MCPError.invalidResponse
-            }
-            payload = Data(line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces).utf8)
+        let payloads: [Data] = if
+            response.value(forHTTPHeaderField: "Content-Type")?.lowercased()
+                .contains("text/event-stream") == true
+        {
+            SSEMessageDecoder.messages(from: data)
         } else {
-            payload = data
+            SSEMessageDecoder.jsonMessages(from: data)
         }
-        let decoded = try JSONDecoder().decode(HTTPJSONRPCResponse<R>.self, from: payload)
-        if let error = decoded.error {
-            throw MCPError.executionFailed(error.message)
+        let decoder = JSONDecoder()
+        for payload in payloads {
+            let header = try decoder.decode(JSONRPCResponseHeader.self, from: payload)
+            guard header.responseID == .int(request.id) else { continue }
+            let decoded = try decoder.decode(JSONRPCResponse<R>.self, from: payload)
+            if let error = decoded.error {
+                throw MCPError.executionFailed(error.message)
+            }
+            guard let result = decoded.result else { throw MCPError.invalidResponse }
+            return result
         }
-        guard let result = decoded.result else { throw MCPError.invalidResponse }
-        return result
+        throw MCPError.invalidResponse
     }
 
     public func sendNotification(method: String, params: some Encodable) async throws {
