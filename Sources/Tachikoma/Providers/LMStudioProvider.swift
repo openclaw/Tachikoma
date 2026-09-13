@@ -216,24 +216,10 @@ public actor LMStudioProvider: ModelProvider {
     // MARK: - Request Mapping
 
     private func mapToOpenAIRequest(_ request: ProviderRequest, streaming: Bool = false) throws -> LMStudioRequest {
-        var messages: [[String: Any]] = []
-
-        for message in request.messages {
-            let serializedContent = self.serializeContentParts(message.content)
-
-            let msg: [String: Any] = [
-                "role": message.role.rawValue,
-                "content": serializedContent.isEmpty ? [["type": "text", "text": ""]] : serializedContent,
-            ]
-
-            // Add metadata if present (future: channel support)
-
-            messages.append(msg)
-        }
+        let messages = try OpenAICompatibleHelper.convertMessages(request.messages)
 
         var body: [String: Any] = [
             "model": modelId,
-            "messages": messages,
             "stream": streaming,
         ]
 
@@ -275,29 +261,7 @@ public actor LMStudioProvider: ModelProvider {
             }
         }
 
-        return LMStudioRequest(body: body)
-    }
-
-    private func serializeContentParts(_ parts: [ModelMessage.ContentPart]) -> [[String: Any]] {
-        parts.compactMap { part in
-            switch part {
-            case let .text(text):
-                [
-                    "type": "text",
-                    "text": text,
-                ]
-            case let .image(image):
-                [
-                    "type": "image_url",
-                    "image_url": [
-                        "mime_type": image.mimeType,
-                        "data": image.data,
-                    ],
-                ]
-            default:
-                nil
-            }
-        }
+        return LMStudioRequest(body: body, messages: messages)
     }
 
     private func mapReasoningEffortToParams(_ effort: ReasoningEffort) -> [String: Any] {
@@ -415,82 +379,14 @@ public actor LMStudioProvider: ModelProvider {
 
 private struct LMStudioRequest: Encodable {
     let body: [String: Any]
+    let messages: [OpenAIChatMessage]
 
-    func encode(to encoder: Encoder) throws {
-        // Convert dictionary to JSON data and then to a temporary encodable structure
-        let data = try JSONSerialization.data(withJSONObject: self.body, options: [])
-        let json = try JSONSerialization.jsonObject(with: data, options: [])
-
-        // Create a container and encode each key-value pair
+    func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: DynamicCodingKey.self)
-        if let dict = json as? [String: Any] {
-            for (key, value) in dict {
-                let codingKey = DynamicCodingKey(stringValue: key)!
-                try encodeValue(value, forKey: codingKey, container: &container)
-            }
+        for (key, value) in self.body {
+            try container.encode(AnyEncodable(value), forKey: DynamicCodingKey(stringLiteral: key))
         }
-    }
-
-    private func encodeValue(
-        _ value: Any,
-        forKey key: DynamicCodingKey,
-        container: inout KeyedEncodingContainer<DynamicCodingKey>,
-    ) throws {
-        switch value {
-        case let bool as Bool:
-            try container.encode(bool, forKey: key)
-        case let int as Int:
-            try container.encode(int, forKey: key)
-        case let double as Double:
-            try container.encode(double, forKey: key)
-        case let string as String:
-            try container.encode(string, forKey: key)
-        case let array as [Any]:
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: key)
-            for item in array {
-                try self.encodeArrayValue(item, container: &nestedContainer)
-            }
-        case let dict as [String: Any]:
-            var nestedContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: key)
-            for (nestedKey, nestedValue) in dict {
-                let nestedCodingKey = DynamicCodingKey(stringValue: nestedKey)!
-                try encodeValue(nestedValue, forKey: nestedCodingKey, container: &nestedContainer)
-            }
-        case is NSNull:
-            try container.encodeNil(forKey: key)
-        default:
-            // Skip values we can't encode
-            break
-        }
-    }
-
-    private func encodeArrayValue(_ value: Any, container: inout UnkeyedEncodingContainer) throws {
-        switch value {
-        case let bool as Bool:
-            try container.encode(bool)
-        case let int as Int:
-            try container.encode(int)
-        case let double as Double:
-            try container.encode(double)
-        case let string as String:
-            try container.encode(string)
-        case let array as [Any]:
-            var nestedContainer = container.nestedUnkeyedContainer()
-            for item in array {
-                try self.encodeArrayValue(item, container: &nestedContainer)
-            }
-        case let dict as [String: Any]:
-            var nestedContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self)
-            for (nestedKey, nestedValue) in dict {
-                let nestedCodingKey = DynamicCodingKey(stringValue: nestedKey)!
-                try encodeValue(nestedValue, forKey: nestedCodingKey, container: &nestedContainer)
-            }
-        case is NSNull:
-            try container.encodeNil()
-        default:
-            // Skip values we can't encode
-            break
-        }
+        try container.encode(self.messages, forKey: DynamicCodingKey(stringLiteral: "messages"))
     }
 }
 
