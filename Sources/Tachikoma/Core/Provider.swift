@@ -162,7 +162,20 @@ public enum Provider: Sendable, Hashable, Codable {
 
     /// All standard providers (excludes custom)
     public static var standardProviders: [Provider] {
-        [.openai, .anthropic, .grok, .groq, .mistral, .google, .minimax, .minimaxCN, .kimi, .ollama, .azureOpenAI]
+        [
+            .openai,
+            .anthropic,
+            .grok,
+            .groq,
+            .mistral,
+            .google,
+            .minimax,
+            .minimaxCN,
+            .kimi,
+            .ollama,
+            .lmstudio,
+            .azureOpenAI,
+        ]
     }
 
     /// Create provider from string identifier
@@ -179,6 +192,7 @@ public enum Provider: Sendable, Hashable, Codable {
         case "minimax-cn", "minimax_cn", "minimaxi": .minimaxCN
         case "kimi", "moonshot": .kimi
         case "ollama": .ollama
+        case "lmstudio": .lmstudio
         case "azure-openai", "azure_openai", "azureopenai": .azureOpenAI
         default: .custom(identifier)
         }

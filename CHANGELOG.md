@@ -11,6 +11,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 - MCP HTTP notifications now accept empty acknowledgements and preserve session headers; streamed responses skip progress events and match request IDs, while SSE requests share the SDK connection for sending, receiving, cancellation, and negotiated protocol metadata.
 
 ### Changed
+- Provider lookup now recognizes LM Studio as a local built-in provider, and public platform metadata matches the package's existing deployment targets.
 - CI now checks Swift 6.3.3 alongside the existing Swift 6.2.4 checks, pins Actions and linter binaries, isolates compiler caches, and typechecks guide examples; core coverage also supports the newer Swift Build object layout.
 - Replaced outdated Azure, LM Studio, GPT-OSS, and tool guides with current SDK examples and a maintained Realtime sample.
 

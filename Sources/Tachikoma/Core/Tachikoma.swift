@@ -17,10 +17,10 @@ public let tachikomaVersion = "0.4.2"
 
 /// Minimum supported platform versions
 public enum PlatformSupport {
-    public static let macOS = "13.0"
-    public static let iOS = "16.0"
-    public static let watchOS = "9.0"
-    public static let tvOS = "16.0"
+    public static let macOS = "14.0"
+    public static let iOS = "17.0"
+    public static let watchOS = "10.0"
+    public static let tvOS = "17.0"
 }
 
 // MARK: - Legacy Compatibility
