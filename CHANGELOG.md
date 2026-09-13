@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
+
 ### Changed
 - CI now checks Swift 6.3.3 alongside the existing Swift 6.2.4 checks, pins Actions and linter binaries, isolates compiler caches, and typechecks guide examples; core coverage also supports the newer Swift Build object layout.
 - Replaced outdated Azure, LM Studio, GPT-OSS, and tool guides with current SDK examples and a maintained Realtime sample.
