@@ -197,11 +197,17 @@ public final class SSETransport: MCPTransport {
             throw MCPError.connectionFailed("Invalid SSE timeout")
         }
         let configuration = self.makeConfiguration()
-        configuration.httpAdditionalHeaders = config.headers ?? [:]
+        let headers = config.headers ?? [:]
         let transport = HTTPClientTransport(
             endpoint: url, configuration: configuration, streaming: true,
             sseInitializationTimeout: min(max(timeout, 1), 60), protocolVersion: "2025-03-26",
-        )
+        ) { request in
+            var request = request
+            for (name, value) in headers where request.value(forHTTPHeaderField: name) == nil {
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+            return request
+        }
         try await transport.connect()
         let previous = await self.state.installConnection(
             transport: transport, timeoutNanoseconds: UInt64(timeout * 1_000_000_000),

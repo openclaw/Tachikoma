@@ -15,7 +15,8 @@ struct SSERequestTests {
         SSEFixtureProtocol.reset()
         let transport = self.transport()
         try await transport.connect(config: MCPServerConfig(
-            transport: "sse", command: "https://sse-fixture.test/mcp", headers: ["X-Fixture": "present"], timeout: 2,
+            transport: "sse", command: "https://sse-fixture.test/mcp",
+            headers: ["X-Fixture": "present", "Content-Type": "unused-default"], timeout: 2,
         ))
         let reply: Reply = try await transport.sendRequest(method: "fixture", params: Params())
         #expect(reply.text == "event: and data: are ordinary response text")
@@ -23,7 +24,8 @@ struct SSERequestTests {
         await transport.disconnect()
         let requests = SSEFixtureProtocol.requests.filter { $0.method == "POST" }
         #expect(requests.count == 2)
-        #expect(requests.first?.headers["X-Fixture"] == "present")
+        #expect(requests.first?.headers.first { $0.key.lowercased() == "x-fixture" }?.value == "present")
+        #expect(requests.first?.headers.first { $0.key.lowercased() == "content-type" }?.value == "application/json")
         #expect(requests.last?.headers.first { $0.key.lowercased() == "mcp-session-id" }?.value == "fixture-session")
         let notification = try #require(requests.last)
         let body = try #require(JSONSerialization.jsonObject(with: notification.body) as? [String: Any])
