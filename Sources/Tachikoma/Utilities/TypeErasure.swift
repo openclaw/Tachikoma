@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 // MARK: - Type-Erased Encoding/Decoding Utilities
@@ -7,14 +8,40 @@ import Foundation
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 struct AnyEncodable: Encodable {
     let value: Any
+    private let stringifyUnsupportedValues: Bool
 
     init(_ value: Any) {
+        self.init(value, stringifyUnsupportedValues: false)
+    }
+
+    init(_ value: Any, stringifyUnsupportedValues: Bool) {
         self.value = value
+        self.stringifyUnsupportedValues = stringifyUnsupportedValues
     }
 
     /// Recursively encode arbitrary JSON-compatible values while preserving type fidelity.
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
+
+        // NSNumber conditionally casts numeric zero/one to Bool; inspect its original type first.
+        if type(of: self.value) is NSNumber.Type, let number = self.value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                try container.encode(number.boolValue)
+            } else if let decimal = number as? NSDecimalNumber {
+                try container.encode(decimal.decimalValue)
+            } else if String(cString: number.objCType) == "f" {
+                try container.encode(number.floatValue)
+            } else if String(cString: number.objCType) == "d" {
+                try container.encode(number.doubleValue)
+            } else if let integer = number as? Int64 {
+                try container.encode(integer)
+            } else if let integer = number as? UInt64 {
+                try container.encode(integer)
+            } else {
+                try container.encode(number.doubleValue)
+            }
+            return
+        }
 
         switch self.value {
         case let bool as Bool:
@@ -46,14 +73,22 @@ struct AnyEncodable: Encodable {
         case let string as String:
             try container.encode(string)
         case let array as [Any]:
-            try container.encode(array.map(AnyEncodable.init))
+            try container.encode(array.map {
+                AnyEncodable($0, stringifyUnsupportedValues: self.stringifyUnsupportedValues)
+            })
         case let dict as [String: Any]:
-            try container.encode(dict.mapValues(AnyEncodable.init))
+            try container.encode(dict.mapValues {
+                AnyEncodable($0, stringifyUnsupportedValues: self.stringifyUnsupportedValues)
+            })
         case is NSNull:
             try container.encodeNil()
-        case let encodable as Encodable:
+        case let encodable as Encodable where !self.stringifyUnsupportedValues:
             try encodable.encode(to: encoder)
         default:
+            if self.stringifyUnsupportedValues {
+                try container.encode(String(describing: self.value))
+                return
+            }
             throw EncodingError.invalidValue(
                 self.value,
                 .init(

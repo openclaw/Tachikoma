@@ -38,7 +38,7 @@ Pass `[add]` as the `tools` argument to `generateText`. The generation loop exec
 
 Read values with `stringValue`, `intValue`, `doubleValue`, `boolValue`, `arrayValue`, `objectValue`, and `isNull`. Argument accessors such as `integerValue(_:)` throw when required input is missing or has the wrong type.
 
-At a Foundation JSON boundary:
+At a Foundation JSON boundary, booleans, numbers, and nulls retain their JSON types, including inside arrays and objects:
 
 ```swift
 let value = try AnyAgentToolValue.fromJSON(["count": 42, "ready": true])

@@ -3,6 +3,109 @@ import Testing
 @testable import Tachikoma
 
 struct TypeErasureTests {
+    @Test(arguments: [false, true])
+    func `Boxed floating-point negative zero retains its sign`(publicHelper: Bool) throws {
+        let values: [String: Any] = [
+            "double": NSNumber(value: -0.0),
+            "float": NSNumber(value: -Float.zero),
+        ]
+        let decoded = try JSONDecoder().decode(
+            [String: Double].self,
+            from: self.encode(values, publicHelper: publicHelper),
+        )
+        #expect(decoded["double"]?.sign == .minus)
+        #expect(decoded["float"]?.sign == .minus)
+    }
+
+    @Test(arguments: [false, true])
+    func `Foundation JSON preserves boolean numeric and null types`(publicHelper: Bool) throws {
+        struct Payload: Decodable, Equatable {
+            struct Nested: Decodable, Equatable {
+                let flags: [Bool?]
+                let counts: [String: Int]
+            }
+
+            let flag: Bool
+            let zero: Int
+            let one: Int
+            let missing: String?
+            let nested: Nested
+        }
+        let source = Data(
+            #"{"flag":true,"zero":0,"one":1,"missing":null,"nested":{"flags":[true,false,null],"counts":{"zero":0,"one":1}}}"#
+                .utf8,
+        )
+        let expected = try JSONDecoder().decode(Payload.self, from: source)
+        let dictionary = try #require(JSONSerialization.jsonObject(with: source) as? [String: Any])
+        let data = try self.encode(dictionary, publicHelper: publicHelper)
+        #expect(try JSONDecoder().decode(Payload.self, from: data) == expected)
+    }
+
+    @Test(arguments: [false, true])
+    func `Numbers retain width and precision`(publicHelper: Bool) throws {
+        struct Numbers: Decodable {
+            let signed: Int64
+            let unsigned: UInt64
+            let precise: Double
+            let decimal: Decimal
+            let nativeUnsigned: UInt64
+        }
+        let decimal = NSDecimalNumber(string: "12345678901234567890.123456789")
+        let values: [String: Any] = [
+            "signed": NSNumber(value: Int64.min),
+            "unsigned": NSNumber(value: UInt64.max),
+            "precise": NSNumber(value: 0.123456789012345),
+            "decimal": decimal,
+            "nativeUnsigned": UInt64.max,
+        ]
+        let result = try JSONDecoder().decode(Numbers.self, from: self.encode(values, publicHelper: publicHelper))
+        #expect(result.signed == Int64.min)
+        #expect(result.unsigned == UInt64.max)
+        #expect(result.precise == 0.123456789012345)
+        #expect(result.decimal == decimal.decimalValue)
+        #expect(result.nativeUnsigned == UInt64.max)
+    }
+
+    @Test
+    func `Public helper retains its nested description fallback`() throws {
+        struct CustomValue: Encodable, CustomStringConvertible {
+            var description: String {
+                "description"
+            }
+
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode("encoded")
+            }
+        }
+        struct Result: Decodable {
+            let values: [String]
+            let nested: [String: String]
+        }
+        let value: [String: Any] = ["values": [CustomValue()], "nested": ["value": CustomValue()]]
+        let publicResult = try JSONDecoder().decode(Result.self, from: self.encode(value, publicHelper: true))
+        #expect(publicResult.values == ["description"])
+        #expect(publicResult.nested == ["value": "description"])
+        let internalResult = try JSONDecoder().decode(Result.self, from: self.encode(value, publicHelper: false))
+        #expect(internalResult.values == ["encoded"])
+        #expect(internalResult.nested == ["value": "encoded"])
+    }
+
+    @Test(arguments: [false, true])
+    func `Nonfinite JSON numbers still throw`(publicHelper: Bool) {
+        #expect(throws: EncodingError.self) {
+            try self.encode(["number": NSNumber(value: Double.infinity)], publicHelper: publicHelper)
+        }
+    }
+
+    private func encode(_ value: [String: Any], publicHelper: Bool) throws -> Data {
+        if publicHelper {
+            try JSONEncoder().encode(PublicJSONPayload(value: value))
+        } else {
+            try JSONEncoder().encode(AnyEncodable(value))
+        }
+    }
+
     @Test
     func `AnyEncodable encodes heterogenous dictionaries`() throws {
         let payload: [String: Any] = [
@@ -75,5 +178,14 @@ struct TypeErasureTests {
         } else {
             Issue.record("Expected options dictionary")
         }
+    }
+}
+
+private struct PublicJSONPayload: Encodable {
+    let value: [String: Any]
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: DynamicCodingKey.self)
+        try encodeAnyValue(self.value, to: &container)
     }
 }
