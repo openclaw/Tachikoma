@@ -71,7 +71,7 @@ public final class GoogleProvider: ModelProvider {
 
     public func streamText(request: ProviderRequest) async throws -> AsyncThrowingStream<TextStreamDelta, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 do {
                     // Convert messages to Google format
                     let googleRequest = try self.buildGoogleRequest(request)
@@ -136,6 +136,7 @@ public final class GoogleProvider: ModelProvider {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 

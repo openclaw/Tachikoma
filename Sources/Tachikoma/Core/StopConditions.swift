@@ -269,7 +269,6 @@ public actor ConsecutivePatternStopCondition: StopCondition {
     private let pattern: String
     private let requiredCount: Int
     private var currentCount: Int = 0
-    private var lastText: String = ""
 
     public init(pattern: String, count: Int) {
         self.pattern = pattern
@@ -287,13 +286,11 @@ public actor ConsecutivePatternStopCondition: StopCondition {
             self.currentCount = occurrences
         }
 
-        self.lastText = text
         return self.currentCount >= self.requiredCount
     }
 
     public func reset() async {
         self.currentCount = 0
-        self.lastText = ""
     }
 }
 
@@ -478,12 +475,13 @@ extension AsyncThrowingStream where Element == TextStreamDelta {
     public func stopWhen(_ condition: any StopCondition) -> AsyncThrowingStream<Element, Error> {
         // Apply stop conditions to a text stream
         AsyncThrowingStream<Element, Error> { continuation in
-            Task {
+            let producer = Task {
                 var accumulatedText = ""
                 await condition.reset()
 
                 do {
                     for try await delta in self {
+                        try Task.checkCancellation()
                         // Accumulate text
                         if case .textDelta = delta.type, let content = delta.content {
                             accumulatedText += content
@@ -511,6 +509,7 @@ extension AsyncThrowingStream where Element == TextStreamDelta {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 }

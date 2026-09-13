@@ -5,6 +5,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ## Unreleased
 
 ### Fixed
+- Stream wrappers and provider requests now cancel owned work when consumers stop; UI streams finish on EOF, and cache/retry tasks release their owners and cancellation handlers.
 - JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
 
 ### Changed

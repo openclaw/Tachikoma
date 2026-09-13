@@ -124,30 +124,7 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
 
         // Log request in verbose mode (silent by default)
 
-        // Send request
-        #if canImport(FoundationNetworking)
-        // Linux: Use data task
-        let (data, response) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
-            (Data, URLResponse),
-            Error,
-        >) in
-            self.session.dataTask(with: urlRequest) { data, response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let data, let response {
-                    continuation.resume(returning: (data, response))
-                } else {
-                    continuation.resume(throwing: TachikomaError.networkError(NSError(
-                        domain: "Invalid response",
-                        code: 0,
-                    )))
-                }
-            }.resume()
-        }
-        #else
-        // macOS/iOS: Use async API
         let (data, response) = try await self.session.data(for: urlRequest)
-        #endif
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TachikomaError.networkError(NSError(domain: "Invalid response", code: 0))
@@ -223,27 +200,11 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
 
         // Create streaming response
         return AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 do {
                     #if canImport(FoundationNetworking)
-                    // Linux: Use data task for now (streaming not available)
-                    let (data, response) = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<
-                        (Data, URLResponse),
-                        Error,
-                    >) in
-                        self.session.dataTask(with: finalURLRequest) { data, response, error in
-                            if let error {
-                                cont.resume(throwing: error)
-                            } else if let data, let response {
-                                cont.resume(returning: (data, response))
-                            } else {
-                                cont.resume(throwing: TachikomaError.networkError(NSError(
-                                    domain: "Invalid response",
-                                    code: 0,
-                                )))
-                            }
-                        }.resume()
-                    }
+                    // Linux buffers the body; the async API still propagates cancellation.
+                    let (data, response) = try await self.session.data(for: finalURLRequest)
 
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw TachikomaError.apiError("Invalid response type")
@@ -325,6 +286,7 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 

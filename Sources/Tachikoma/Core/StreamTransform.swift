@@ -140,9 +140,10 @@ extension AsyncThrowingStream where Element: Sendable {
     {
         // Apply a transform to the stream
         AsyncThrowingStream<T.Output, Error> { continuation in
-            Task {
+            let producer = Task {
                 do {
                     for try await element in self {
+                        try Task.checkCancellation()
                         if let output = try await transform.transform(element) {
                             continuation.yield(output)
                         }
@@ -152,6 +153,7 @@ extension AsyncThrowingStream where Element: Sendable {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 
@@ -199,9 +201,10 @@ extension AsyncThrowingStream where Element: Sendable {
         )
 
         return AsyncThrowingStream<[Element], Error> { continuation in
-            Task {
+            let producer = Task {
                 do {
                     for try await element in self {
+                        try Task.checkCancellation()
                         if let batch = try await bufferTransform.transform(element) {
                             continuation.yield(batch)
                         }
@@ -215,6 +218,7 @@ extension AsyncThrowingStream where Element: Sendable {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 

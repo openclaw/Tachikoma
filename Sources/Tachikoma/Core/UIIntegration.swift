@@ -205,9 +205,11 @@ extension StreamTextResult {
     public func toUIMessageStream() -> AsyncStream<UIMessageChunk> {
         // Convert streaming result to UI message chunks for real-time updates
         AsyncStream { continuation in
-            Task {
+            let producer = Task {
+                defer { continuation.finish() }
                 do {
                     for try await delta in self.stream {
+                        try Task.checkCancellation()
                         switch delta.type {
                         case .textDelta:
                             if let content = delta.content {
@@ -220,7 +222,7 @@ extension StreamTextResult {
                             }
                         case .done:
                             continuation.yield(.done)
-                            continuation.finish()
+                            return
                         default:
                             // Handle other event types as needed
                             break
@@ -228,9 +230,9 @@ extension StreamTextResult {
                     }
                 } catch {
                     continuation.yield(.error(error))
-                    continuation.finish()
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 
@@ -238,19 +240,22 @@ extension StreamTextResult {
     public func toTextStream() -> AsyncStream<String> {
         // Convert streaming result to simple text stream
         AsyncStream { continuation in
-            Task {
+            let producer = Task {
+                defer { continuation.finish() }
                 do {
                     for try await delta in self.stream {
+                        try Task.checkCancellation()
                         if delta.type == .textDelta, let content = delta.content {
                             continuation.yield(content)
                         } else if delta.type == .done {
-                            continuation.finish()
+                            return
                         }
                     }
                 } catch {
-                    continuation.finish()
+                    // This convenience stream intentionally omits provider errors.
                 }
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
     }
 

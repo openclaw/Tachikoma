@@ -156,8 +156,20 @@ public func retryWithCancellation<T: Sendable>(
 ) async throws
     -> T
 {
+    guard
+        configuration.maxAttempts > 0,
+        configuration.backoffMultiplier.isFinite,
+        configuration.backoffMultiplier >= 0 else
+    {
+        throw TachikomaError.invalidConfiguration("Invalid retry configuration")
+    }
+    _ = try TimeoutNanoseconds.fromSeconds(configuration.delay)
+    _ = try TimeoutNanoseconds.fromSeconds(configuration.maxDelay)
+    if let timeout = configuration.timeout {
+        _ = try TimeoutNanoseconds.fromSeconds(timeout)
+    }
     var lastError: Error?
-    var currentDelay = configuration.delay
+    var currentDelay = min(configuration.delay, configuration.maxDelay)
 
     for attempt in 1...configuration.maxAttempts {
         // Check cancellation
@@ -183,9 +195,18 @@ public func retryWithCancellation<T: Sendable>(
                     operationTask.cancel()
                 }
 
-                let value = try await operationTask.value
-                await token.removeHandler(handlerToken)
-                return value
+                do {
+                    let value = try await withTaskCancellationHandler {
+                        try await operationTask.value
+                    } onCancel: {
+                        operationTask.cancel()
+                    }
+                    await token.removeHandler(handlerToken)
+                    return value
+                } catch {
+                    await token.removeHandler(handlerToken)
+                    throw error
+                }
             } else {
                 return try await runOperation()
             }
@@ -203,7 +224,7 @@ public func retryWithCancellation<T: Sendable>(
             }
 
             // Wait with backoff
-            try await Task<Never, Never>.sleep(nanoseconds: UInt64(currentDelay * 1_000_000_000))
+            try await Task<Never, Never>.sleep(nanoseconds: TimeoutNanoseconds.fromSeconds(currentDelay))
             currentDelay = min(currentDelay * configuration.backoffMultiplier, configuration.maxDelay)
         }
     }

@@ -632,7 +632,7 @@ public func streamObject<T: Codable & Sendable>(
 
     // Create a new stream that attempts to parse partial JSON objects
     let objectStream = AsyncThrowingStream<ObjectStreamDelta<T>, Error> { continuation in
-        Task {
+        let producer = Task {
             do {
                 var accumulatedText = ""
                 var lastValidObject: T?
@@ -670,6 +670,7 @@ public func streamObject<T: Codable & Sendable>(
                 }
 
                 for try await delta in stream {
+                    try Task.checkCancellation()
                     if case .textDelta = delta.type, let content = delta.content {
                         accumulatedText += content
 
@@ -747,6 +748,7 @@ public func streamObject<T: Codable & Sendable>(
                 continuation.finish(throwing: error)
             }
         }
+        continuation.onTermination = { _ in producer.cancel() }
     }
 
     return StreamObjectResult(

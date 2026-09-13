@@ -650,24 +650,8 @@ public final class AnthropicProvider: ModelProvider {
 
         // Use URLSession's bytes API for proper streaming
         #if canImport(FoundationNetworking)
-        // Linux: Use data task for now (streaming not available)
-        let (data, response) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
-            (Data, URLResponse),
-            Error,
-        >) in
-            self.urlSession.dataTask(with: urlRequest) { data, response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let data, let response {
-                    continuation.resume(returning: (data, response))
-                } else {
-                    continuation.resume(throwing: TachikomaError.networkError(NSError(
-                        domain: "Invalid response",
-                        code: 0,
-                    )))
-                }
-            }.resume()
-        }
+        // Linux buffers the body; the async API still propagates cancellation.
+        let (data, response) = try await self.urlSession.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TachikomaError.networkError(NSError(domain: "Invalid response", code: 0))
@@ -700,7 +684,7 @@ public final class AnthropicProvider: ModelProvider {
         }
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 var currentToolCall: (id: String, name: String, partialInput: String)?
                 var accumulatedText = ""
                 var accumulatedReasoning = ""
@@ -928,13 +912,14 @@ public final class AnthropicProvider: ModelProvider {
 
                 continuation.finish()
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
         #endif // End of macOS/iOS streaming implementation
 
         #if canImport(FoundationNetworking)
         // Linux implementation: Parse the entire response
         return AsyncThrowingStream { continuation in
-            Task {
+            let producer = Task {
                 var currentToolCall: (id: String, name: String, partialInput: String)?
                 var accumulatedText = ""
                 var accumulatedReasoning = ""
@@ -1046,6 +1031,7 @@ public final class AnthropicProvider: ModelProvider {
 
                 continuation.finish()
             }
+            continuation.onTermination = { _ in producer.cancel() }
         }
         #endif
     }
