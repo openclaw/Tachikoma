@@ -3,25 +3,6 @@ import Logging
 import MCP
 import Tachikoma
 
-/// Shared JSON-RPC types for HTTP transport
-struct HTTPJSONRPCRequest<P: Encodable>: Encodable {
-    let jsonrpc = "2.0"
-    let method: String
-    let params: P
-    let id: Int
-}
-
-struct HTTPJSONRPCResponse<R: Decodable>: Decodable {
-    let jsonrpc: String
-    let result: R?
-    let error: HTTPJSONRPCError?
-    let id: Int?
-}
-
-struct HTTPJSONRPCError: Decodable { let code: Int
-    let message: String
-}
-
 /// Configuration for an MCP server connection
 public struct MCPServerConfig: Sendable, Codable {
     public var transport: String // "stdio", "http", "sse"
@@ -114,7 +95,6 @@ private actor MCPClientState {
 public final class MCPClient: Sendable {
     private let config: MCPServerConfig
     private let logger: Logger
-    private let client: Client
     private let state = MCPClientState()
     private let name: String
 
@@ -122,10 +102,6 @@ public final class MCPClient: Sendable {
         self.name = name
         self.config = config
         self.logger = Logger(label: "tachikoma.mcp.client.\(name)")
-        self.client = Client(
-            name: "tachikoma-mcp-client",
-            version: "1.0.0",
-        )
     }
 
     /// Connect to the MCP server
