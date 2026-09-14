@@ -2,19 +2,21 @@
 
 All notable changes to the Tachikoma project will be documented in this file.
 
-## Unreleased
+## 0.5.0 - 2026-09-13
+
+**Highlights:** LM Studio is a built-in local provider with working multi-step tool calls, `--thinking` shows reasoning summaries, and MCP HTTP/SSE sessions are fixed.
 
 ### Fixed
 - LM Studio now preserves tool calls, result IDs, and image URLs in conversation history so multi-step tool generation can complete.
-- Stream wrappers and provider requests now cancel owned work when consumers stop; UI streams finish on EOF, and cache/retry tasks release their owners and cancellation handlers.
 - CLI `--thinking` now requests and displays reasoning summaries through the shared Responses provider, preserves filtered responses, and reports invalid endpoints without crashing; GPT-5 capability validation retains requested reasoning effort.
-- JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
 - MCP HTTP notifications now accept empty acknowledgements and preserve session headers; streamed responses skip progress events and match request IDs, while SSE requests share the SDK connection for sending, receiving, cancellation, and negotiated protocol metadata.
+- Stream wrappers and provider requests now cancel owned work when consumers stop; UI streams finish on EOF, and cache/retry tasks release their owners and cancellation handlers.
+- JSON encoding now preserves Foundation booleans, numeric precision, and nested nulls through one shared encoder instead of changing booleans to numbers or nulls to strings.
 
 ### Changed
 - Provider lookup now recognizes LM Studio as a local built-in provider, and public platform metadata matches the package's existing deployment targets.
-- CI now checks Swift 6.3.3 alongside the existing Swift 6.2.4 checks, pins Actions and linter binaries, isolates compiler caches, and typechecks guide examples; core coverage also supports the newer Swift Build object layout.
 - Replaced outdated Azure, LM Studio, GPT-OSS, and tool guides with current SDK examples and a maintained Realtime sample.
+- CI now checks Swift 6.3.3 alongside the existing Swift 6.2.4 checks, pins Actions and linter binaries, isolates compiler caches, and typechecks guide examples; core coverage also supports the newer Swift Build object layout.
 
 ## 0.4.2 - 2026-09-11
 
