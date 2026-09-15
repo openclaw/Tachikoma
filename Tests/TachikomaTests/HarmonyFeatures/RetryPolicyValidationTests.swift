@@ -5,13 +5,59 @@ import Testing
 struct RetryPolicyValidationTests {
     @Test(arguments: [
         RetryPolicy(baseDelay: -1), RetryPolicy(baseDelay: .nan), RetryPolicy(baseDelay: .infinity),
-        RetryPolicy(maxDelay: -1), RetryPolicy(maxDelay: .infinity),
+        RetryPolicy(maxDelay: -1), RetryPolicy(maxDelay: .nan),
         RetryPolicy(exponentialBase: -1), RetryPolicy(exponentialBase: .nan),
         RetryPolicy(jitterRange: -1...1), RetryPolicy(jitterRange: 1...Double.infinity),
-        RetryPolicy(jitterRange: 1e100...1e100),
     ])
     func `invalid duration policies fail before work`(_ policy: RetryPolicy) async {
         await self.expectRejectedBeforeWork(policy)
+    }
+
+    @Test(arguments: [Double.infinity, Double.greatestFiniteMagnitude])
+    func `unbounded caps allow finite retries`(_ maxDelay: Double) async throws {
+        let calls = RetryHandlerTests.CallCounter()
+        let handler = RetryHandler(policy: RetryPolicy(
+            maxAttempts: 2, baseDelay: 0.001, maxDelay: maxDelay, jitterRange: 1...1,
+        ) { _ in true })
+        let result = try await handler.execute {
+            await calls.increment()
+            if await calls.get() == 1 {
+                throw TachikomaError.apiError("fixture")
+            }
+            return 1
+        }
+        #expect(result == 1)
+        #expect(await calls.get() == 2)
+        let stream = try await handler.executeStream {
+            AsyncThrowingStream<Int, Error> { $0.yield(1)
+                $0.finish()
+            }
+        }
+        var values: [Int] = []
+        for try await value in stream {
+            values.append(value)
+        }
+        #expect(values == [1])
+    }
+
+    @Test
+    func `overflowing effective delays fail before sleeping`() async {
+        let calls = RetryHandlerTests.CallCounter()
+        let retries = RetryHandlerTests.CallCounter()
+        let handler = RetryHandler(policy: RetryPolicy(
+            maxAttempts: 2, baseDelay: 1, maxDelay: .infinity, jitterRange: 1e100...1e100,
+        ) { _ in true })
+        await #expect(throws: TachikomaError.self) {
+            try await handler.execute(
+                operation: { () async throws -> Int in
+                    await calls.increment()
+                    throw TachikomaError.apiError("fixture")
+                },
+                onRetry: { _, _, _ in await retries.increment() },
+            )
+        }
+        #expect(await calls.get() == 1)
+        #expect(await retries.get() == 0)
     }
 
     @Test(arguments: [0, -1, Int.min])
@@ -83,16 +129,19 @@ struct RetryPolicyValidationTests {
         #expect(await retries.get() == 0)
     }
 
-    @Test
-    func `zero delay survives exponential overflow`() async throws {
+    @Test(arguments: [
+        RetryPolicy(maxAttempts: 4, baseDelay: 0, exponentialBase: .greatestFiniteMagnitude),
+        RetryPolicy(
+            maxAttempts: 4, maxDelay: .infinity, exponentialBase: .greatestFiniteMagnitude, jitterRange: 0...0,
+        ),
+    ])
+    func `zero delay survives exponential overflow`(_ policy: RetryPolicy) async throws {
         let calls = RetryHandlerTests.CallCounter()
-        let handler = RetryHandler(policy: RetryPolicy(
-            maxAttempts: 4, baseDelay: 0, exponentialBase: .greatestFiniteMagnitude,
-        ) { _ in true })
+        let handler = RetryHandler(policy: policy)
         let result = try await handler.execute {
             await calls.increment()
             if await calls.count < 4 {
-                throw TachikomaError.apiError("fixture")
+                throw TachikomaError.rateLimited(retryAfter: nil)
             }
             return 1
         }

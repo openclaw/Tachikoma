@@ -5,7 +5,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ## Unreleased
 
 ### Fixed
-- Retry handlers now reject invalid attempt counts and delays without trapping, stop on cancellation, and share validation between ordinary requests and stream creation.
+- Retry handlers now reject invalid attempt counts and effective delays without trapping, preserve unbounded delay caps for finite retries, stop on cancellation, and share validation between ordinary requests and stream creation.
 - JSON value conversions now preserve numeric zero/one and scalar Codable values, decode large numbers without integer-overflow crashes, and reject lossy or boolean integer tool inputs.
 
 ## 0.5.0 - 2026-09-13

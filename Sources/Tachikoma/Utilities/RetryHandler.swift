@@ -93,25 +93,26 @@ public struct RetryPolicy: Sendable {
     /// Calculate delay for a given attempt (0-indexed)
     func delay(for attempt: Int) -> TimeInterval {
         guard self.baseDelay != 0, self.maxDelay != 0 else { return 0 }
+        let jitter = Double.random(in: self.jitterRange)
+        guard jitter != 0 else { return 0 }
         // Exponential backoff with jitter
         let exponentialDelay = self.baseDelay * pow(self.exponentialBase, Double(attempt))
         let clampedDelay = min(exponentialDelay, maxDelay)
-        let jitter = Double.random(in: self.jitterRange)
         return clampedDelay * jitter
     }
 
     func validate() throws {
+        // An infinite cap is valid; effective delays are checked before each sleep.
         guard
             self.maxAttempts > 0,
             self.baseDelay.isFinite, self.baseDelay >= 0,
+            self.maxDelay >= 0,
             self.exponentialBase.isFinite, self.exponentialBase >= 0,
             self.jitterRange.lowerBound.isFinite, self.jitterRange.lowerBound >= 0,
             self.jitterRange.upperBound.isFinite else
         {
             throw TachikomaError.invalidConfiguration("Invalid retry policy")
         }
-        _ = try TimeoutNanoseconds.fromSeconds(self.maxDelay)
-        _ = try TimeoutNanoseconds.fromSeconds(self.maxDelay * self.jitterRange.upperBound)
     }
 }
 
