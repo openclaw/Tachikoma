@@ -23,6 +23,8 @@ The active provider protocol is `ModelProvider` in `Sources/Tachikoma/Models/Mod
 
 Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible services share `Core/OpenAICompatibleHelper.swift`; Anthropic, Google, Ollama, LM Studio, and the OpenAI Responses API retain their own wire formats. Anthropic and Ollama have separate implementation files. Shared reasoning endpoint identity belongs to Core because generation and multiple adapters use it.
 
+`generateEmbeddingsBatch` requires positive concurrency, limits the number of active requests, and returns results in input order. Failure or cancellation stops admission of queued work and cancels active requests. OpenAI embedding input accepts text or token IDs; response vectors are matched by index and must have the requested dimension, or a consistent nonzero dimension when none is specified. Missing, duplicate, out-of-range, empty, or malformed entries are rejected instead of returning partial results.
+
 `AsyncThrowingStream` is an event-delivery mechanism, not a guarantee of bounded buffering or producer backpressure. Owners of background tasks must cancel them when the consumer terminates. Some models buffer text until terminal status so a refusal can discard it safely; consult the provider's capabilities and `GenerationSettings.streamBuffering`.
 
 ## Messages, reasoning, and tools

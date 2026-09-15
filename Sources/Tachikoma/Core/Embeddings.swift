@@ -52,29 +52,49 @@ public func generateEmbeddingsBatch(
 {
     let provider = try EmbeddingProviderFactory.createProvider(for: model, configuration: configuration)
 
-    // Use TaskGroup for controlled concurrency
+    return try await generateEmbeddingsBatch(
+        provider: provider, inputs: inputs, settings: settings, concurrency: concurrency,
+    )
+}
+
+func generateEmbeddingsBatch(
+    provider: any EmbeddingProvider,
+    inputs: [EmbeddingInput],
+    settings: EmbeddingSettings = .default,
+    concurrency: Int = 5,
+) async throws
+    -> [EmbeddingResult]
+{
+    guard concurrency > 0 else {
+        throw TachikomaError.invalidInput("Embedding batch concurrency must be greater than zero")
+    }
+    try Task.checkCancellation()
+    let generate: @Sendable (Int) async throws -> (Int, EmbeddingResult) = { index in
+        try Task.checkCancellation()
+        let request = EmbeddingRequest(input: inputs[index], settings: settings)
+        let result = try await provider.generateEmbedding(request: request)
+        return (index, result)
+    }
+
     return try await withThrowingTaskGroup(of: (Int, EmbeddingResult).self) { group in
-        // Limit concurrent requests
-        let semaphore = EmbeddingAsyncSemaphore(value: concurrency)
+        let initialCount = min(concurrency, inputs.count)
+        for index in 0..<initialCount {
+            group.addTask { try await generate(index) }
+        }
 
-        for (index, input) in inputs.indexed() {
-            group.addTask {
-                await semaphore.wait()
-                defer { Task { await semaphore.signal() } }
-
-                let request = EmbeddingRequest(input: input, settings: settings)
-                let result = try await provider.generateEmbedding(request: request)
-                return (index, result)
+        var results: [(Int, EmbeddingResult)] = []
+        results.reserveCapacity(inputs.count)
+        var nextIndex = initialCount
+        while let result = try await group.next() {
+            try Task.checkCancellation()
+            results.append(result)
+            if nextIndex < inputs.count {
+                let index = nextIndex
+                nextIndex += 1
+                group.addTask { try await generate(index) }
             }
         }
 
-        // Collect results in order
-        var results: [(Int, EmbeddingResult)] = []
-        for try await result in group {
-            results.append(result)
-        }
-
-        // Sort by index and extract results
         return results.sorted { $0.0 < $1.0 }.map(\.1)
     }
 }
@@ -255,37 +275,6 @@ struct EmbeddingProviderFactory {
             )
         case let .custom(modelId):
             throw TachikomaError.unsupportedOperation("Custom embedding model '\(modelId)' not implemented")
-        }
-    }
-}
-
-// MARK: - Async Semaphore Helper
-
-@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-private actor EmbeddingAsyncSemaphore {
-    private var value: Int
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    init(value: Int) {
-        self.value = value
-    }
-
-    func wait() async {
-        if self.value > 0 {
-            self.value -= 1
-        } else {
-            await withCheckedContinuation { continuation in
-                self.waiters.append(continuation)
-            }
-        }
-    }
-
-    func signal() {
-        if let waiter = waiters.first {
-            self.waiters.removeFirst()
-            waiter.resume()
-        } else {
-            self.value += 1
         }
     }
 }

@@ -2,15 +2,13 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 struct OpenAIEmbeddingProvider: EmbeddingProvider, ModelProvider {
     let model: EmbeddingModel.OpenAIEmbedding
     let apiKey: String?
     let baseURL: String?
+    var session: URLSession = .shared
 
     var modelId: String {
         self.model.rawValue
@@ -47,8 +45,12 @@ struct OpenAIEmbeddingProvider: EmbeddingProvider, ModelProvider {
         // Build request body
         var body: [String: Any] = [
             "model": model.rawValue,
-            "input": request.input.asTexts,
         ]
+        if case let .tokens(tokens) = request.input {
+            body["input"] = tokens
+        } else {
+            body["input"] = request.input.asTexts
+        }
 
         if let dimensions = request.settings.dimensions {
             body["dimensions"] = dimensions
@@ -56,7 +58,7 @@ struct OpenAIEmbeddingProvider: EmbeddingProvider, ModelProvider {
 
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await self.session.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TachikomaError.networkError(NSError(domain: "Invalid response", code: 0))
@@ -67,26 +69,25 @@ struct OpenAIEmbeddingProvider: EmbeddingProvider, ModelProvider {
             throw TachikomaError.apiError("OpenAI Embedding Error (HTTP \(httpResponse.statusCode)): \(errorText)")
         }
 
-        // Parse response
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-
-        guard let dataArray = json["data"] as? [[String: Any]] else {
-            throw TachikomaError.apiError("Invalid response format from OpenAI")
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let payload = try decoder.decode(EmbeddingResponse.self, from: data)
+        let expectedCount = if case let .texts(texts) = request.input {
+            texts.count
+        } else {
+            1
         }
-
-        let embeddings = dataArray.compactMap { item -> [Double]? in
-            item["embedding"] as? [Double]
-        }
-
-        // Parse usage
-        var usage: Usage?
-        if
-            let usageDict = json["usage"] as? [String: Any],
-            let promptTokens = usageDict["prompt_tokens"] as? Int,
-            usageDict["total_tokens"] != nil
+        let expectedDimensions = request.settings.dimensions ?? payload.data.first?.embedding.count ?? 0
+        guard
+            payload.data.count == expectedCount,
+            Set(payload.data.map(\.index)) == Set(0..<expectedCount),
+            payload.data.allSatisfy({ !$0.embedding.isEmpty && $0.embedding.count == expectedDimensions }) else
         {
-            usage = Usage(inputTokens: promptTokens, outputTokens: 0)
+            throw TachikomaError.apiError("OpenAI embedding response has invalid vector count, indices, or dimensions")
         }
+        let embeddings = payload.data.sorted { $0.index < $1.index }.map(\.embedding)
+
+        let usage = payload.usage.map { Usage(inputTokens: $0.promptTokens, outputTokens: 0) }
 
         return EmbeddingResult(
             embeddings: embeddings,
@@ -97,6 +98,20 @@ struct OpenAIEmbeddingProvider: EmbeddingProvider, ModelProvider {
                 normalizedL2: request.settings.normalizeEmbeddings,
             ),
         )
+    }
+
+    private struct EmbeddingResponse: Decodable {
+        struct Item: Decodable {
+            let index: Int
+            let embedding: [Double]
+        }
+
+        struct TokenUsage: Decodable {
+            let promptTokens: Int
+        }
+
+        let data: [Item]
+        let usage: TokenUsage?
     }
 }
 
