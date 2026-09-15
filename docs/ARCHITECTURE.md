@@ -33,6 +33,8 @@ Provider-native reasoning is replayed only when its provider/model/endpoint iden
 
 `AgentTool` combines a name, description, `AgentToolParameters`, and an asynchronous executor. Arguments and results use `AnyAgentToolValue`, which preserves typed JSON values. `AgentToolParameters.jsonSchema()` is the shared serialization path; provider-specific normalization is explicit. `AgentToolJSONSchema` offers a recursive typed view while retaining unknown keywords and the source schema. It does not resolve references or validate tool inputs at runtime.
 
+`TypedValue` preserves JSON scalars as well as arrays and objects when converting through Codable. Foundation number conversion shares `AnyAgentToolValue`'s boolean and integer handling, so numeric zero/one remain numbers. Numbers outside `Int`'s range remain doubles; `Int.fromJSON` accepts only exactly representable integers and rejects fractional values, booleans, and non-finite or overflowing numbers.
+
 `TachikomaAgent` binds dynamically discovered tools to the provider that supplied their schemas. Registry refreshes invalidate stale bindings, and duplicate names fail instead of dispatching by discovery order. `TachikomaMCP` uses shared schema and content bridges for both static adapters and dynamic discovery.
 
 ## Configuration and concurrency
