@@ -54,12 +54,10 @@ extension Int: AgentToolValue {
     }
 
     public static func fromJSON(_ json: Any) throws -> Self {
-        if let int = json as? Int {
+        if let int = try AnyAgentToolValue.fromJSON(json).intValue {
             return int
-        } else if let double = json as? Double {
-            return Int(double)
         } else {
-            throw TachikomaError.invalidInput("Expected Int, got \(type(of: json))")
+            throw TachikomaError.invalidInput("Expected an exactly representable Int, got \(type(of: json))")
         }
     }
 }
@@ -250,7 +248,9 @@ public struct AnyAgentToolValue: AgentToolValue, Equatable, Codable {
             if CFGetTypeID(number) == CFBooleanGetTypeID() {
                 return AnyAgentToolValue(bool: number.boolValue)
             }
-            if let int = json as? Int {
+            // Foundation can clamp floating-point NSNumber casts at Int.max.
+            let isFloatingPoint = ["f", "d"].contains(String(cString: number.objCType))
+            if !isFloatingPoint, let int = json as? Int {
                 return AnyAgentToolValue(int: int)
             }
             let double = number.doubleValue

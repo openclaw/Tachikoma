@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- JSON value conversions now preserve numeric zero/one and scalar Codable values, decode large numbers without integer-overflow crashes, and reject lossy or boolean integer tool inputs.
+
 ## 0.5.0 - 2026-09-13
 
 **Highlights:** LM Studio is a built-in local provider with working multi-step tool calls, `--thinking` shows reasoning summaries, and MCP HTTP/SSE sessions are fixed.

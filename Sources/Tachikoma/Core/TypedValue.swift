@@ -126,20 +126,8 @@ public enum TypedValue: Codable, Sendable, Equatable, Hashable {
         switch json {
         case is NSNull:
             return .null
-        case let bool as Bool:
-            return .bool(bool)
-        case let int as Int:
-            return .int(int)
-        case let double as Double:
-            // Check if it's actually an integer value
-            if
-                double.truncatingRemainder(dividingBy: 1) == 0,
-                double >= Double(Int.min),
-                double <= Double(Int.max)
-            {
-                return .int(Int(double))
-            }
-            return .double(double)
+        case let number as NSNumber:
+            return try .from(AnyAgentToolValue.fromJSON(number))
         case let string as String:
             return .string(string)
         case let array as [Any]:
@@ -165,13 +153,8 @@ public enum TypedValue: Codable, Sendable, Equatable, Hashable {
         } else if let int = try? container.decode(Int.self) {
             self = .int(int)
         } else if let double = try? container.decode(Double.self) {
-            // Check if it's actually an integer
-            if
-                double.truncatingRemainder(dividingBy: 1) == 0,
-                double >= Double(Int.min),
-                double <= Double(Int.max)
-            {
-                self = .int(Int(double))
+            if let int = Int(exactly: double) {
+                self = .int(int)
             } else {
                 self = .double(double)
             }
@@ -232,19 +215,12 @@ public enum TypedValueError: LocalizedError {
 extension TypedValue {
     /// Create from any Encodable value
     public init(from value: some Encodable) throws {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(value)
-        let json = try JSONSerialization.jsonObject(with: data)
-        self = try TypedValue.fromJSON(json)
+        self = try JSONDecoder().decode(Self.self, from: JSONEncoder().encode(value))
     }
 
     /// Decode into a specific Decodable type
     public func decode<T: Decodable>(as type: T.Type) throws -> T {
-        // Decode into a specific Decodable type
-        let json = self.toJSON()
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let decoder = JSONDecoder()
-        return try decoder.decode(type, from: data)
+        try JSONDecoder().decode(type, from: JSONEncoder().encode(self))
     }
 }
 
