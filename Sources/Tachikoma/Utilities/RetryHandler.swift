@@ -92,11 +92,27 @@ public struct RetryPolicy: Sendable {
 
     /// Calculate delay for a given attempt (0-indexed)
     func delay(for attempt: Int) -> TimeInterval {
+        guard self.baseDelay != 0, self.maxDelay != 0 else { return 0 }
+        let jitter = Double.random(in: self.jitterRange)
+        guard jitter != 0 else { return 0 }
         // Exponential backoff with jitter
         let exponentialDelay = self.baseDelay * pow(self.exponentialBase, Double(attempt))
         let clampedDelay = min(exponentialDelay, maxDelay)
-        let jitter = Double.random(in: self.jitterRange)
         return clampedDelay * jitter
+    }
+
+    func validate() throws {
+        // An infinite cap is valid; effective delays are checked before each sleep.
+        guard
+            self.maxAttempts > 0,
+            self.baseDelay.isFinite, self.baseDelay >= 0,
+            self.maxDelay >= 0,
+            self.exponentialBase.isFinite, self.exponentialBase >= 0,
+            self.jitterRange.lowerBound.isFinite, self.jitterRange.lowerBound >= 0,
+            self.jitterRange.upperBound.isFinite else
+        {
+            throw TachikomaError.invalidConfiguration("Invalid retry policy")
+        }
     }
 }
 
@@ -116,13 +132,18 @@ public actor RetryHandler {
     ) async throws
         -> T
     {
-        // Execute an async operation with automatic retry
+        try self.policy.validate()
         var lastError: Error?
 
         for attempt in 0..<self.policy.maxAttempts {
+            try Task.checkCancellation()
             do {
                 return try await operation()
             } catch {
+                if error is CancellationError {
+                    throw error
+                }
+                try Task.checkCancellation()
                 lastError = error
 
                 // Check if we should retry
@@ -143,14 +164,16 @@ public actor RetryHandler {
                     case let TachikomaError.rateLimited(retryAfter) = error,
                     let retryAfter
                 {
+                    _ = try TimeoutNanoseconds.fromSeconds(retryAfter)
                     delay = max(delay, retryAfter)
                 }
+                let delayNanoseconds = try TimeoutNanoseconds.fromSeconds(delay)
 
                 // Notify about retry
                 await onRetry?(attempt + 1, delay, error)
 
                 // Wait before retrying
-                try await Task.sleep(for: .seconds(delay))
+                try await Task.sleep(nanoseconds: delayNanoseconds)
             }
         }
 
@@ -165,46 +188,7 @@ public actor RetryHandler {
     ) async throws
         -> AsyncThrowingStream<T, Error>
     {
-        // For streaming, we only retry the initial connection, not mid-stream errors
-        // This avoids complex state management and potential data duplication
-        var lastError: Error?
-
-        for attempt in 0..<self.policy.maxAttempts {
-            do {
-                // Try to create the stream
-                return try await operation()
-            } catch {
-                lastError = error
-
-                // Check if we should retry
-                guard self.policy.shouldRetry(error) else {
-                    throw error
-                }
-
-                // Check if we have more attempts
-                guard attempt < self.policy.maxAttempts - 1 else {
-                    throw error
-                }
-
-                // Calculate delay
-                var delay = self.policy.delay(for: attempt)
-
-                if
-                    case let TachikomaError.rateLimited(retryAfter) = error,
-                    let retryAfter
-                {
-                    delay = max(delay, retryAfter)
-                }
-
-                // Notify about retry
-                await onRetry?(attempt + 1, delay, error)
-
-                // Wait before retrying
-                try await Task.sleep(for: .seconds(delay))
-            }
-        }
-
-        throw lastError ?? TachikomaError.apiError("Stream retry failed with unknown error")
+        try await self.execute(operation: operation, onRetry: onRetry)
     }
 }
 
