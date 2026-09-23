@@ -1,6 +1,6 @@
 # Contributing
 
-This is a SwiftPM package. The supported source minimum is Swift 6.2. CI keeps Swift 6.2.4 coverage (Xcode 26.3 on macOS) and also tests Swift 6.3.3 on Linux. SwiftFormat 0.63.0 and SwiftLint 0.65.1 are installed from checksum-verified release binaries.
+This is a SwiftPM package. The supported source minimum is Swift 6.2. CI keeps Swift 6.2.4 coverage (Xcode 26.3 on macOS) and also tests Swift 6.4.0 on Linux. SwiftFormat 0.63.0 and SwiftLint 0.65.1 are installed from checksum-verified release binaries.
 
 ## Development
 

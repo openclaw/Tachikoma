@@ -18,11 +18,11 @@ struct ProbeTimeoutTests {
     }
 
     @Test(arguments: [-1, Int.max])
-    func `probeServer rejects invalid timeoutMs before sleeping`(timeoutMs: Int) async throws {
+    func `probeServer rejects invalid timeoutMs before sleeping`(timeoutMs: Int) async {
         let manager = TachikomaMCPClientManager()
-        try await manager.addServer(
-            name: "probe",
-            config: MCPServerConfig(command: "never-executed"),
+        await manager.initialize(
+            with: ["probe": MCPServerConfig(command: "never-executed")],
+            connect: false,
         )
 
         let result = await manager.probeServer(name: "probe", timeoutMs: timeoutMs)
