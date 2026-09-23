@@ -4,6 +4,10 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.1 - 2026-09-23
+
+**Highlights:** Prevent incorrect cached answers, preserve embedding and JSON values, and make cancellation and retry behavior reliable.
+
 ### Fixed
 - Response caching now distinguishes complete images, tool arguments and results, tool schemas and routing, and output formats; requests with unencodable settings bypass the cache instead of reusing an unrelated answer.
 - Cancelled MCP SSE requests now consistently throw `CancellationError` even when URLSession finishes before cancellation cleanup.
