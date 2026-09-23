@@ -5,6 +5,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ## Unreleased
 
 ### Fixed
+- Response caching now distinguishes complete images, tool arguments and results, tool schemas and routing, and output formats; requests with unencodable settings bypass the cache instead of reusing an unrelated answer.
 - Cancelled MCP SSE requests now consistently throw `CancellationError` even when URLSession finishes before cancellation cleanup.
 - Embedding batches now reject nonpositive concurrency and stop queued requests on failure or cancellation; OpenAI embeddings preserve token input, follow response indices, and reject incomplete or malformed vectors instead of silently returning mismatched results.
 - Retry handlers now reject invalid attempt counts and effective delays without trapping, preserve unbounded delay caps for finite retries, stop on cancellation, and share validation between ordinary requests and stream creation.

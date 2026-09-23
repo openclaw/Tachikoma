@@ -45,6 +45,8 @@ Use an explicit `TachikomaConfiguration` when callers need different keys, endpo
 
 Actors own asynchronous mutable state such as sessions, tool registries, caches, and transport continuations. Synchronous configuration and conversation access uses locks. `@unchecked Sendable` is a requirement to preserve the associated locking discipline, not proof that every access is safe. Keep locks out of suspension points and preserve generation checks around reconnects and late responses.
 
+`ResponseCache` keys include complete message content and metadata, tool definitions and routing, generation settings, output format, and stable stop conditions. Local message IDs and timestamps do not affect reuse. Authenticated providers, unsafe endpoints, custom stop conditions without stable keys, and requests that cannot be encoded are not cached.
+
 Conversation continuations serialize through an actor gate. Generated history is merged against snapshot identities so a concurrent edit cannot silently overwrite the user's conversation.
 
 ## Audio and MCP

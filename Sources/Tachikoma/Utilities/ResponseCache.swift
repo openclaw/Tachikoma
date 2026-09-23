@@ -47,59 +47,12 @@ struct CacheKey: Hashable {
             self.isCacheable = false
             return
         }
-        // Create a unique hash from the request
         var hasher = Hasher()
         if let providerIdentity {
             hasher.combine(providerIdentity.providerKind)
             hasher.combine(providerIdentity.modelId)
             hasher.combine(providerIdentity.endpointIdentity)
         }
-        // Combine message content
-        for message in request.messages {
-            hasher.combine(message.role.rawValue)
-            hasher.combine(message.channel?.rawValue)
-            hasher.combine(message.metadata?.conversationId)
-            hasher.combine(message.metadata?.turnId)
-            for key in message.metadata?.customData?.keys.sorted() ?? [] {
-                hasher.combine(key)
-                hasher.combine(message.metadata?.customData?[key])
-            }
-            for part in message.content {
-                switch part {
-                case let .text(text):
-                    hasher.combine(text)
-                case let .image(image):
-                    hasher.combine(image.mimeType)
-                    hasher.combine(image.data.prefix(100)) // Use first 100 chars of base64 data
-                case let .reasoning(reasoning):
-                    hasher.combine(reasoning.id)
-                    hasher.combine(reasoning.encryptedContent)
-                    for summary in reasoning.summary ?? [] {
-                        hasher.combine(summary.type)
-                        hasher.combine(summary.text)
-                    }
-                case let .toolCall(call):
-                    hasher.combine(call.id)
-                    hasher.combine(call.name)
-                case let .toolResult(result):
-                    hasher.combine(result.toolCallId)
-                }
-            }
-        }
-        // Combine tools
-        if let tools = request.tools {
-            hasher.combine(tools.map(\.name))
-        }
-        // Combine settings
-        hasher.combine(request.settings.temperature)
-        hasher.combine(request.settings.maxTokens)
-        hasher.combine(request.settings.topP)
-        hasher.combine(request.settings.topK)
-        hasher.combine(request.settings.frequencyPenalty)
-        hasher.combine(request.settings.presencePenalty)
-        hasher.combine(request.settings.stopSequences)
-        hasher.combine(request.settings.reasoningEffort?.rawValue)
-        hasher.combine(request.settings.seed)
         if let stopConditions = request.settings.stopConditions {
             guard let cacheKey = (stopConditions as? StableCacheKeyStopCondition)?.stableCacheKey else {
                 self.hash = ""
@@ -108,18 +61,39 @@ struct CacheKey: Hashable {
             }
             hasher.combine(cacheKey)
         }
-        if let providerOptionsData = try? Self.providerOptionsEncoder.encode(request.settings.providerOptions) {
-            hasher.combine(providerOptionsData)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        do {
+            hasher.combine(request.messages.count)
+            for message in request.messages {
+                // Local message IDs and timestamps are not sent to providers.
+                hasher.combine(message.role.rawValue)
+                hasher.combine(message.channel?.rawValue)
+                try hasher.combine(encoder.encode(message.metadata))
+                try hasher.combine(encoder.encode(message.content))
+            }
+            hasher.combine(request.tools?.count)
+            for tool in request.tools ?? [] {
+                hasher.combine(tool.name)
+                hasher.combine(tool.description)
+                hasher.combine(tool.namespace)
+                hasher.combine(tool.recipient)
+                try hasher.combine(encoder.encode(tool.parameters))
+            }
+            try hasher.combine(encoder.encode(request.settings))
+            switch request.outputFormat {
+            case nil: hasher.combine(0)
+            case .text: hasher.combine(1)
+            case .json: hasher.combine(2)
+            }
+        } catch {
+            self.hash = ""
+            self.isCacheable = false
+            return
         }
         self.hash = String(hasher.finalize())
         self.isCacheable = true
     }
-
-    private static let providerOptionsEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return encoder
-    }()
 }
 
 // MARK: - Response Cache
@@ -158,7 +132,6 @@ public actor ResponseCache {
     )
         -> ProviderResponse?
     {
-        // Get cached response with TTL validation
         let key = CacheKey(from: request, providerIdentity: providerIdentity)
         guard key.isCacheable else {
             self.statistics.recordMiss()
@@ -195,7 +168,6 @@ public actor ResponseCache {
         priority: CachePriority = .normal,
         providerIdentity: CacheProviderIdentity? = nil,
     ) {
-        // Store response with custom TTL and priority
         let key = CacheKey(from: request, providerIdentity: providerIdentity)
         guard key.isCacheable else {
             return
@@ -226,7 +198,6 @@ public actor ResponseCache {
     func invalidate(
         matching predicate: @escaping (CacheKey, CacheEntry) -> Bool,
     ) {
-        // Invalidate entries matching predicate
         let toRemove = self.cache.filter { predicate($0.key, $0.value) }
 
         for (key, _) in toRemove {
@@ -238,7 +209,6 @@ public actor ResponseCache {
 
     /// Invalidate entries by model
     public func invalidateModel(_ modelId: String) {
-        // Invalidate entries by model
         self.invalidate { key, _ in
             key.model == modelId
         }
@@ -246,7 +216,6 @@ public actor ResponseCache {
 
     /// Invalidate entries older than specified age
     public func invalidateOlderThan(_ age: TimeInterval) {
-        // Invalidate entries older than specified age
         let cutoff = Date().addingTimeInterval(-age)
         self.invalidate { _, entry in
             entry.createdAt < cutoff
@@ -255,7 +224,6 @@ public actor ResponseCache {
 
     /// Clear all cache entries
     public func clear() {
-        // Clear all cache entries
         let count = self.cache.count
         self.cache.removeAll()
         self.accessOrder.removeAll()
@@ -264,7 +232,6 @@ public actor ResponseCache {
 
     /// Get cache statistics
     public func getStatistics() -> EnhancedCacheStatistics {
-        // Get cache statistics
         self.statistics.snapshot(
             currentEntries: self.cache.count,
             maxEntries: self.configuration.maxEntries,
@@ -276,7 +243,6 @@ public actor ResponseCache {
         with requests: [(ProviderRequest, ProviderResponse)],
         ttl: TimeInterval? = nil,
     ) {
-        // Prewarm cache with common requests
         for (request, response) in requests {
             self.store(response, for: request, ttl: ttl, priority: .high)
         }
@@ -296,9 +262,6 @@ public actor ResponseCache {
             }
         }
         self.memoryPressureObserver = CacheMemoryObservation(observation)
-        #elseif os(macOS)
-        // macOS doesn't have UIApplication memory warnings
-        // Could use ProcessInfo.processInfo.thermalState monitoring instead
         #endif
     }
 
@@ -652,7 +615,6 @@ public struct EnhancedCacheStatistics: Sendable {
 extension ResponseCache {
     /// Create a cache-aware provider
     public func wrapProvider<T: ModelProvider>(_ provider: T) -> CacheAwareProvider<T> {
-        // Create a cache-aware provider
         CacheAwareProvider(provider: provider, cache: self)
     }
 }
@@ -715,13 +677,12 @@ public struct CacheAwareProvider<Base: ModelProvider>: ModelProvider {
     }
 
     public func streamText(request: ProviderRequest) async throws -> AsyncThrowingStream<TextStreamDelta, Error> {
-        // Streaming bypasses cache but could cache the final result
         try await self.provider.streamText(request: request)
     }
 
     private func determineTTL(for request: ProviderRequest) -> TimeInterval {
         // Shorter TTL for requests with tools (more dynamic)
-        if request.tools != nil, !request.tools!.isEmpty {
+        if request.tools?.isEmpty == false {
             return 300 // 5 minutes
         }
 

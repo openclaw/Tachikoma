@@ -1,7 +1,7 @@
 import Testing
 @testable import Tachikoma
 
-/// Helper class for thread-safe mutable value in closures
+/// Mutable counter for sequential cache fixture calls.
 final class Box<T>: @unchecked Sendable {
     var value: T
     init(value: T) {
@@ -14,14 +14,9 @@ struct ResponseCacheTests {
     func `ResponseCache initialization`() async {
         let config = CacheConfiguration(maxEntries: 50, defaultTTL: 1800)
         let cache = ResponseCache(configuration: config)
-        // Note: statistics() is not a public method, commenting out for now
-        // let stats = await cache.statistics()
-        // #expect(stats.totalEntries == 0)
-        // #expect(stats.cacheSize == 50)
-        // #expect(stats.oldestEntry == nil)
-        // #expect(stats.newestEntry == nil)
-
-        // Test is minimal since we can't access statistics, so ensure empty cache lookups succeed.
+        let statistics = await cache.getStatistics()
+        #expect(statistics.currentEntries == 0)
+        #expect(statistics.maxEntries == 50)
         let probeRequest = ProviderRequest(
             messages: [ModelMessage.user("ping")],
             tools: nil,
@@ -226,48 +221,27 @@ struct ResponseCacheTests {
             await cache.store(response, for: request)
         }
 
-        // Verify entries exist
-        // Note: statistics() is not a public method
-        // var stats = await cache.statistics()
-        // #expect(stats.totalEntries == 5)
-
-        // Clear cache
+        #expect(await cache.getStatistics().currentEntries == 5)
         await cache.clear()
-
-        // Verify cache is empty
-        // stats = await cache.statistics()
-        // #expect(stats.totalEntries == 0)
-        // #expect(stats.validEntries == 0)
+        let statistics = await cache.getStatistics()
+        #expect(statistics.currentEntries == 0)
+        #expect(statistics.evictions[.cleared] == 5)
     }
 
     @Test
     func `ResponseCache statistics`() async {
-        let config = CacheConfiguration(maxEntries: 100, defaultTTL: 3600)
-        let cache = ResponseCache(configuration: config)
-
-        // Initial state
-        // Note: statistics() is not a public method
-        // var stats = await cache.statistics()
-        // #expect(stats.totalEntries == 0)
-        // #expect(stats.validEntries == 0)
-        // #expect(stats.cacheSize == 100)
-
-        // Add entries
+        let cache = ResponseCache(configuration: CacheConfiguration(maxEntries: 100))
+        let initial = await cache.getStatistics()
+        #expect(initial.currentEntries == 0)
+        #expect(initial.maxEntries == 100)
+        #expect(initial.stores == 0)
         for i in 1...3 {
-            let request = ProviderRequest(
-                messages: [ModelMessage.user("Test \(i)")],
-                tools: nil,
-                settings: .default,
-            )
-            let response = ProviderResponse(text: "Response \(i)", usage: nil, finishReason: .stop)
-            await cache.store(response, for: request)
+            let request = ProviderRequest(messages: [.user("Test \(i)")])
+            await cache.store(ProviderResponse(text: "Response \(i)"), for: request)
         }
-
-        // stats = await cache.statistics()
-        // #expect(stats.totalEntries == 3)
-        // #expect(stats.validEntries == 3)
-        // #expect(stats.oldestEntry != nil)
-        // #expect(stats.newestEntry != nil)
+        let statistics = await cache.getStatistics()
+        #expect(statistics.currentEntries == 3)
+        #expect(statistics.stores == 3)
     }
 
     @Test
