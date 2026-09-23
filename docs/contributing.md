@@ -46,3 +46,5 @@ TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --parallel 
 ```
 
 Coverage is optional. The testing guide describes the report command; `scripts/core-coverage.sh` reports the same core/model scope from either per-file SwiftPM objects or a Swift Build module object.
+
+See [RELEASING.md](RELEASING.md) for versioning and publishing a Swift package release.
