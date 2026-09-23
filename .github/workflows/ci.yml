@@ -31,9 +31,9 @@ jobs:
           - name: Ubuntu 24.04
             os: ubuntu-24.04
             swift: '6.2.4'
-          - name: Ubuntu 24.04, Swift 6.3.3
+          - name: Ubuntu 24.04, Swift 6.4.0
             os: ubuntu-24.04
-            swift: '6.3.3'
+            swift: '6.4.0'
 
     steps:
       - name: Checkout

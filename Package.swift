@@ -51,9 +51,9 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.1"),
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.12.1"),
-        .package(url: "https://github.com/apple/swift-configuration", from: "1.2.0"),
+        .package(url: "https://github.com/apple/swift-configuration", from: "1.2.1"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.2.1"),
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "4.5.2"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "4.5.2"..<"6.0.0"),
     ],
     targets: [
         // Core Tachikoma module (no MCP dependencies)
