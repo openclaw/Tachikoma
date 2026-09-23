@@ -33,8 +33,8 @@ struct SSERequestTests {
         #expect(body["id"] == nil)
     }
 
-    @Test(.timeLimit(.minutes(1)))
-    func `Cancelling a request stops the HTTP operation and resolves the caller`() async throws {
+    @Test(.timeLimit(.minutes(1)), arguments: 0..<20)
+    func `Cancelling a request stops the HTTP operation and resolves the caller`(_: Int) async throws {
         let (started, startedSignal) = AsyncStream<Void>.makeStream()
         let (stopped, stoppedSignal) = AsyncStream<Void>.makeStream()
         SSEFixtureProtocol.reset()
@@ -59,6 +59,40 @@ struct SSERequestTests {
         request.cancel()
         await #expect(throws: CancellationError.self) { try await request.value }
         try #require(await stopped.contains { _ in true })
+        await transport.disconnect()
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `Already cancelled requests never start an HTTP operation`() async throws {
+        SSEFixtureProtocol.reset()
+        defer { SSEFixtureProtocol.reset() }
+        let transport = self.transport()
+        try await transport.connect(config: MCPServerConfig(
+            transport: "sse", command: "https://sse-fixture.test/mcp", timeout: 30,
+        ))
+        let request = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            let _: Reply = try await transport.sendRequest(method: "fixture", params: Params())
+        }
+        await #expect(throws: CancellationError.self) { try await request.value }
+        await transport.disconnect()
+        #expect(SSEFixtureProtocol.requests.allSatisfy { $0.method != "POST" })
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [URLError.cancelled, .notConnectedToInternet])
+    func `Transport errors without caller cancellation retain their error code`(_ code: URLError.Code) async throws {
+        SSEFixtureProtocol.reset()
+        SSEFixtureProtocol.failure = code
+        defer { SSEFixtureProtocol.reset() }
+        let transport = self.transport()
+        try await transport.connect(config: MCPServerConfig(
+            transport: "sse", command: "https://sse-fixture.test/mcp", timeout: 30,
+        ))
+        await #expect {
+            let _: Reply = try await transport.sendRequest(method: "fixture", params: Params())
+        } throws: { error in
+            (error as? URLError)?.code == code
+        }
         await transport.disconnect()
     }
 
@@ -131,6 +165,12 @@ private final class SSEFixtureProtocol: URLProtocol {
     private nonisolated(unsafe) static var storedRequests: [Request] = []
     private nonisolated(unsafe) static var storedHold: (@Sendable () -> Void)?
     private nonisolated(unsafe) static var storedStop: (@Sendable () -> Void)?
+    private nonisolated(unsafe) static var storedFailure: URLError.Code?
+    static var failure: URLError.Code? {
+        get { self.lock.withLock { self.storedFailure } }
+        set { self.lock.withLock { self.storedFailure = newValue } }
+    }
+
     private nonisolated(unsafe) static var storedFraming = 0
     static var framing: Int {
         get { self.lock.withLock { self.storedFraming } }
@@ -156,6 +196,7 @@ private final class SSEFixtureProtocol: URLProtocol {
             self.storedHold = nil
             self.storedStop = nil
             self.storedFraming = 0
+            self.storedFailure = nil
         }
     }
 
@@ -179,6 +220,10 @@ private final class SSEFixtureProtocol: URLProtocol {
         }
         if self.request.httpMethod == "POST", let hold = Self.hold {
             hold()
+            return
+        }
+        if self.request.httpMethod == "POST", let failure = Self.failure {
+            self.client?.urlProtocol(self, didFailWithError: URLError(failure))
             return
         }
         let code: Int

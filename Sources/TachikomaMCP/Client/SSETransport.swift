@@ -237,26 +237,34 @@ public final class SSETransport: MCPTransport {
         let id = await self.state.getNextId()
         let data = try JSONEncoder().encode(HTTPJSONRPCRequest(method: method, params: params, id: id))
         let operation = SSERequestOperation()
-        let responseData: Data = try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                let task = Task {
-                    guard
-                        await self.state.registerPending(
-                            id, continuation: continuation, generation: connection.generation, operation: operation,
-                        ) else { return }
-                    do {
-                        try Task.checkCancellation()
-                        try await connection.transport.send(data)
-                    } catch {
-                        await self.state.failPending(id, generation: connection.generation, error: error)
+        let responseData: Data
+        do {
+            responseData = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    let task = Task {
+                        guard
+                            await self.state.registerPending(
+                                id, continuation: continuation, generation: connection.generation, operation: operation,
+                            ) else { return }
+                        do {
+                            try Task.checkCancellation()
+                            try await connection.transport.send(data)
+                        } catch {
+                            await self.state.failPending(id, generation: connection.generation, error: error)
+                        }
                     }
+                    operation.install(task)
                 }
-                operation.install(task)
+            } onCancel: {
+                operation.cancel()
+                Task { await self.state.failPending(id, generation: connection.generation, error: CancellationError()) }
             }
-        } onCancel: {
-            operation.cancel()
-            Task { await self.state.failPending(id, generation: connection.generation, error: CancellationError()) }
+        } catch {
+            // URLSession cancellation can reach the continuation before onCancel's actor hop.
+            try Task.checkCancellation()
+            throw error
         }
+        try Task.checkCancellation()
         let response = try JSONDecoder().decode(JSONRPCResponse<R>.self, from: responseData)
         if let error = response.error {
             throw MCPError.executionFailed(error.message)
