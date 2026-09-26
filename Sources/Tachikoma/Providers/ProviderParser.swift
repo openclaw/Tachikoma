@@ -228,6 +228,9 @@ public enum ProviderParser {
     // MARK: - Private Helpers
 
     private static func parseOpenAIModel(_ modelString: String) -> LanguageModel? {
+        if let model = LanguageModel.OpenAI.gpt6Model(for: modelString) {
+            return .openai(model)
+        }
         let normalized = modelString.lowercased()
         let compact = normalized.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: ".", with: "")
         guard

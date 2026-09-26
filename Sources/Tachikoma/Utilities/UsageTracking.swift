@@ -527,7 +527,11 @@ public struct ModelCostCalculator: Sendable {
     /// Calculate cost for a model usage
     public func calculateCost(for model: LanguageModel, usage: Usage) -> Usage.Cost {
         // Calculate cost for a model usage
-        let pricing = self.getPricing(for: model)
+        var pricing = self.getPricing(for: model)
+        if case let .openai(openai) = model, openai.isGPT6, usage.inputTokens > 272_000 {
+            pricing.input *= 2
+            pricing.output *= 1.5
+        }
 
         let inputCost = Double(usage.inputTokens) * pricing.input / 1_000_000.0
         let outputCost = Double(usage.outputTokens) * pricing.output / 1_000_000.0
@@ -544,6 +548,9 @@ public struct ModelCostCalculator: Sendable {
             switch openaiModel {
             case .chatLatest: (5.00, 30.00) // ChatGPT Instant alias pricing estimate
             case .gpt5ChatLatest: (1.25, 10.00)
+            case .gpt6Astra: (10.00, 50.00)
+            case .gpt6Sol: (2.00, 10.00)
+            case .gpt6Luna: (0.10, 0.50)
             case .gpt56Sol: (5.00, 30.00)
             case .gpt56Terra: (2.50, 15.00)
             case .gpt56Luna: (1.00, 6.00)
@@ -557,6 +564,9 @@ public struct ModelCostCalculator: Sendable {
             case .gpt5Nano: (0.50, 2.00) // GPT-5 Nano pricing estimate
             case let .custom(id):
                 switch LanguageModel.parse(from: id) {
+                case .openai(.gpt6Astra): (10.00, 50.00)
+                case .openai(.gpt6Sol): (2.00, 10.00)
+                case .openai(.gpt6Luna): (0.10, 0.50)
                 case .openai(.gpt56Sol): (5.00, 30.00)
                 case .openai(.gpt56Terra): (2.50, 15.00)
                 case .openai(.gpt56Luna): (1.00, 6.00)

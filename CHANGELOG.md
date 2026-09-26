@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Added
+- Added GPT-6 Astra, Sol, and Luna with typed model selection, Responses generation and streaming, vision and tools, current context limits and pricing, and model-specific reasoning validation.
+
 ## 0.5.1 - 2026-09-23
 
 **Highlights:** Prevent incorrect cached answers, preserve embedding and JSON values, and make cancellation and retry behavior reliable.

@@ -71,6 +71,7 @@ enum TextVerbosity: String, Codable {
 /// Internal reasoning effort levels for OpenAI responses provider
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 enum OpenAIReasoningEffort: String, Codable {
+    case none
     case minimal
     case low
     case medium

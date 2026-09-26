@@ -15,6 +15,9 @@ public struct ProviderFactory {
         // Create a provider for the specified language model
         switch model {
         case let .openai(openaiModel):
+            if let model = LanguageModel.OpenAI.gpt6Model(for: openaiModel.modelId) {
+                return try OpenAIResponsesProvider(model: model, configuration: configuration)
+            }
             // Use Responses API for the GPT-5 family
             switch openaiModel {
             case .chatLatest,

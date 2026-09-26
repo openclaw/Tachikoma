@@ -88,6 +88,13 @@ extension LanguageModel {
 
         // MARK: OpenAI models
 
+        if let model = OpenAI.gpt6Model(for: modelIdentifier) {
+            return .openai(model)
+        }
+        if compact.contains("gpt6") {
+            return nil
+        }
+
         if
             compact.contains("gpt4") || compact.contains("gpt3") || compact.contains("o3") || compact.contains("o4") ||
             compact.contains("gpt51") || compact.contains("gpt52") ||

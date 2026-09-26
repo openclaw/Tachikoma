@@ -8,6 +8,11 @@ extension LanguageModel {
         /// GPT-5 snapshot previously used in ChatGPT.
         case gpt5ChatLatest
 
+        /// GPT-6 series.
+        case gpt6Astra
+        case gpt6Sol
+        case gpt6Luna
+
         /// GPT-5.5 Series
         case gpt55 // Flagship GPT-5.5
 
@@ -34,6 +39,9 @@ extension LanguageModel {
             [
                 .chatLatest,
                 .gpt5ChatLatest,
+                .gpt6Astra,
+                .gpt6Sol,
+                .gpt6Luna,
                 .gpt56Sol,
                 .gpt56Terra,
                 .gpt56Luna,
@@ -53,6 +61,9 @@ extension LanguageModel {
             case let .custom(id): id
             case .chatLatest: "chat-latest"
             case .gpt5ChatLatest: "gpt-5-chat-latest"
+            case .gpt6Astra: "gpt-6-astra"
+            case .gpt6Sol: "gpt-6-sol"
+            case .gpt6Luna: "gpt-6-luna"
             case .gpt56Sol: "gpt-5.6-sol"
             case .gpt56Terra: "gpt-5.6-terra"
             case .gpt56Luna: "gpt-5.6-luna"
@@ -71,6 +82,7 @@ extension LanguageModel {
             switch self {
             case .chatLatest,
                  .gpt5ChatLatest,
+                 .gpt6Astra, .gpt6Sol, .gpt6Luna,
                  .gpt56Sol, .gpt56Terra, .gpt56Luna,
                  .gpt55,
                  .gpt54, .gpt54Mini, .gpt54Nano,
@@ -83,6 +95,7 @@ extension LanguageModel {
             switch self {
             case .chatLatest,
                  .gpt5ChatLatest,
+                 .gpt6Astra, .gpt6Sol, .gpt6Luna,
                  .gpt56Sol, .gpt56Terra, .gpt56Luna,
                  .gpt55,
                  .gpt54, .gpt54Mini, .gpt54Nano,
@@ -118,6 +131,8 @@ extension LanguageModel {
             switch self {
             case .gpt5ChatLatest:
                 128_000
+            case .gpt6Astra, .gpt6Sol, .gpt6Luna:
+                1_050_000
             case .gpt56Sol, .gpt56Terra, .gpt56Luna:
                 372_000
             case .chatLatest, .gpt55,
@@ -125,6 +140,22 @@ extension LanguageModel {
                  .gpt5, .gpt5Pro, .gpt5Mini, .gpt5Nano: 400_000 // 272k input + 128k output
             case .custom: 128_000 // Default assumption
             }
+        }
+
+        static func gpt6Model(for modelId: String) -> OpenAI? {
+            let compact = modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                .replacingOccurrences(of: "-", with: "")
+                .replacingOccurrences(of: "_", with: "")
+            return switch compact {
+            case "gpt6", "gpt6astra": .gpt6Astra
+            case "gpt6sol": .gpt6Sol
+            case "gpt6luna": .gpt6Luna
+            default: nil
+            }
+        }
+
+        var isGPT6: Bool {
+            Self.gpt6Model(for: self.modelId) != nil
         }
 
         /// Resolves a GPT-5.6 model ID, including provider-qualified IDs used by compatible APIs.

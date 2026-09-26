@@ -124,6 +124,9 @@ public struct ModelSelector {
     // MARK: - Provider-Specific Parsing
 
     private static func parseOpenAIModel(_ input: String) -> Model.OpenAI? {
+        if let model = Model.OpenAI.gpt6Model(for: input) {
+            return model
+        }
         switch input {
         case "chat-latest", "chatlatest":
             return .chatLatest

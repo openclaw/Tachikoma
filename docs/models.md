@@ -10,12 +10,16 @@ Tachikoma ships with a built-in model catalog (`CaseIterable` enums) plus suppor
 ## OpenAI (`LanguageModel.OpenAI`)
 
 - `chat-latest`, `gpt-5-chat-latest`
+- `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna` (`.gpt6Astra`, `.gpt6Sol`, `.gpt6Luna`; bare `gpt-6` selects Astra)
 - `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` (preview; bare `gpt-5.6` selects Sol)
 - `gpt-5.5`
 - `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
 - `gpt-5`, `gpt-5-pro`, `gpt-5-mini`, `gpt-5-nano`
 
 Notes:
+- GPT-6 uses the Responses API for generation, streaming, vision, and tools, with a 1,050,000-token context window and 128,000-token maximum output. Existing model defaults are unchanged.
+- Set `OpenAIOptions.reasoningEffort` to `low`, `medium`, `high`, `xhigh`, or `max`; Sol and Luna also accept `reasoningEffort: .some(.none)` (distinct from Swift's optional `nil`). GPT-6 rejects `minimal`, and Astra rejects `none`. Temperature and top-p are omitted while reasoning is enabled.
+- GPT-6 cost estimates use Standard API token rates; cache writes, cached-input discounts, and service-tier premiums are not included. See the [OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model) and [pricing](https://developers.openai.com/api/docs/pricing).
 - Older `gpt-5.1`, `gpt-5.2`, and `gpt-5-thinking*` ids are not first-class catalog entries.
 
 ## Anthropic (`LanguageModel.Anthropic`)

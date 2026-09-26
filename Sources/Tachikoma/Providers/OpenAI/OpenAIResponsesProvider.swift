@@ -666,6 +666,15 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
             } else {
                 let effort: OpenAIReasoningEffort
                 if let optionEffort = openaiOptions?.reasoningEffort {
+                    if
+                        self.model.isGPT6,
+                        optionEffort == .minimal ||
+                        (self.model == .gpt6Astra && optionEffort == .none)
+                    {
+                        throw TachikomaError.invalidConfiguration(
+                            "\(self.modelId) does not support '\(optionEffort.rawValue)' reasoning effort; use 'low' or higher",
+                        )
+                    }
                     if Self.isGPT56Model(self.model), optionEffort == .minimal {
                         throw TachikomaError.invalidConfiguration(
                             "GPT-5.6 does not support 'minimal' reasoning effort; use 'low' or higher",
@@ -1254,7 +1263,10 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
 
     private static func isGPT5Model(_ model: LanguageModel.OpenAI) -> Bool {
         switch model {
-        case .gpt56Sol,
+        case .gpt6Astra,
+             .gpt6Sol,
+             .gpt6Luna,
+             .gpt56Sol,
              .gpt56Terra,
              .gpt56Luna,
              .gpt55,
