@@ -10,6 +10,8 @@ This runs the unit and mocked provider suites without API keys or external servi
 
 CI runs the complete suite on macOS with Swift 6.2.4. Linux covers both Swift 6.2.4 and Swift 6.4.0. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
 
+On macOS, `scripts/test-compatible-stream-output.sh` additionally runs one exact, discovered compatible-provider fixture in child test processes with the former debug environment switch absent and present. It asserts nonempty functional test results and rejects synthetic request markers in both captured output streams. The fixture checks request encoding, ordered text/tool events and terminal stopping with a session-local URLProtocol; no live provider is contacted, and stdout is not redirected inside the parallel test process.
+
 ## Live provider smoke tests
 
 Configure the credentials for the providers you intend to test, then run:

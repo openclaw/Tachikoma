@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- Stop OpenAI-compatible streaming from dumping request payloads and endpoint metadata to process output, including GPT-5-named models and the former `DEBUG_OPENAI` switch; preserve encoded requests and stream delivery.
+
 ### Added
 - Added GPT-6 Astra, Sol, and Luna with typed model selection, Responses generation and streaming, vision and tools, current context limits and pricing, and model-specific reasoning validation.
 

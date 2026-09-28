@@ -217,23 +217,6 @@ struct OpenAICompatibleHelper {
         encoder.outputFormatting = .prettyPrinted
         urlRequest.httpBody = try encoder.encode(openAIRequest)
 
-        // Debug logging for GPT-5 and other models
-        if modelId.contains("gpt-5") || ProcessInfo.processInfo.environment["DEBUG_OPENAI"] != nil {
-            print("🔵 DEBUG OpenAI Request to \(url.absoluteString):")
-            print("   Model: \(modelId)")
-            print("   Tools count: \(openAIRequest.tools?.count ?? 0)")
-            if let toolNames = openAIRequest.tools?.map(\.function.name) {
-                print("   Tool names: \(toolNames.joined(separator: ", "))")
-            }
-            if
-                let jsonData = urlRequest.httpBody,
-                let jsonString = String(data: jsonData, encoding: .utf8)
-            {
-                let preview = String(jsonString.prefix(2000))
-                print("   Request JSON (first 2000 chars):\n\(preview)")
-            }
-        }
-
         // Create a copy to avoid capturing mutable reference
         let finalRequest = urlRequest
 

@@ -27,6 +27,8 @@ Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible serv
 
 `AsyncThrowingStream` is an event-delivery mechanism, not a guarantee of bounded buffering or producer backpressure. Owners of background tasks must cancel them when the consumer terminates. Some models buffer text until terminal status so a refusal can discard it safely; consult the provider's capabilities and `GenerationSettings.streamBuffering`.
 
+Compatible streaming request construction does not print endpoint/model metadata or request previews. The former `DEBUG_OPENAI` request dump is removed; hosts own presentation of the returned deltas. This does not change separate verbose-generation or response-decoding diagnostics.
+
 ## Messages, reasoning, and tools
 
 `ModelMessage` is a struct with a role, content parts, identity, timestamp, channel, and metadata. Content parts carry text, images, provider reasoning, tool calls, and tool results. Agent conversations preserve these structured parts instead of reconstructing history from displayed text.

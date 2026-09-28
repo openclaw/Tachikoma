@@ -212,6 +212,98 @@ struct OpenAICompatibleHelperTests {
         #expect(deltas.contains { $0.type == .done && $0.finishReason == .contentFilter })
     }
 
+    @Test(arguments: ["gpt-5.6-sol", "openai/gpt-5.6-sol", "compatible-fixture"])
+    func `Compatible streaming keeps payloads off process output`(modelID: String) async throws {
+        let marker = "TACHIKOMA_PRIVATE_REQUEST_FIXTURE"
+        let tool = AgentTool(
+            name: "quiet_tool",
+            description: "\(marker) schema",
+            parameters: AgentToolParameters(
+                properties: [
+                    "query": AgentToolParameterProperty(
+                        name: "query", type: .string, description: "Synthetic query",
+                    ),
+                ],
+                required: ["query"],
+            ),
+        ) { _ in
+            Issue.record("Provider streaming must not execute the fixture tool")
+            return AnyAgentToolValue(string: "unused")
+        }
+        let request = ProviderRequest(
+            messages: [.user("\(marker) prompt")],
+            tools: [tool],
+            settings: GenerationSettings(maxTokens: 64),
+        )
+        let captured = CapturedRequest()
+        let deltas = try await self.withMockedSession { urlRequest in
+            #expect(captured.body == nil)
+            let body = try #require(self.bodyData(from: urlRequest))
+            captured.body = body
+            let json = try body.jsonObject()
+            #expect(urlRequest.httpMethod == "POST")
+            #expect(urlRequest.url?.absoluteString == "https://mock.compatible/v1/chat/completions")
+            #expect(urlRequest.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-key")
+            #expect(json["model"] as? String == modelID)
+            #expect(json["stream"] as? Bool == true)
+            let tokenKey = modelID == "gpt-5.6-sol" ? "max_completion_tokens" : "max_tokens"
+            #expect(json[tokenKey] as? Int == 64)
+            let messages = try #require(json["messages"] as? [[String: Any]])
+            #expect(messages.count == 1)
+            #expect(messages[0]["role"] as? String == "user")
+            #expect(messages[0]["content"] as? String == "\(marker) prompt")
+            let tools = try #require(json["tools"] as? [[String: Any]])
+            #expect(tools.count == 1)
+            let function = try #require(tools[0]["function"] as? [String: Any])
+            #expect(function["name"] as? String == "quiet_tool")
+            #expect(function["description"] as? String == "\(marker) schema")
+            let parameters = try #require(function["parameters"] as? [String: Any])
+            #expect(parameters["required"] as? [String] == ["query"])
+            let properties = try #require(parameters["properties"] as? [String: [String: Any]])
+            #expect(properties["query"]?["type"] as? String == "string")
+            let url = try #require(urlRequest.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/event-stream"],
+            ))
+            return (response, Self.quietContractStream)
+        } operation: { session in
+            let provider = try OpenAICompatibleProvider(
+                modelId: modelID,
+                baseURL: "https://mock.compatible/v1",
+                configuration: TachikomaConfiguration(apiKeys: ["openai_compatible": "fixture-key"]),
+                session: session,
+            )
+            var result: [TextStreamDelta] = []
+            let stream = try await provider.streamText(request: request)
+            for try await delta in stream {
+                result.append(delta)
+            }
+            return result
+        }
+        #expect(captured.body != nil)
+        #expect(deltas.map(\.type) == [.textDelta, .textDelta, .toolCall, .done])
+        #expect(deltas.compactMap(\.content) == ["Fixture answer\n", "  with whitespace 😀"])
+        let call = try #require(deltas.compactMap(\.toolCall).first)
+        #expect(call.id == "f")
+        #expect(call.name == "quiet_tool")
+        #expect(call.arguments["query"]?.stringValue == "synthetic-value")
+        #expect(deltas.last?.finishReason == .toolCalls)
+    }
+
+    private static let quietContractStream = [
+        #"data: {"id":"c1","choices":[{"delta":{"content":"Fixture answer\n"},"index":0}]}"#,
+        #"data: {"id":"c2","choices":[{"delta":{"content":"  with whitespace 😀"},"index":0}]}"#,
+        #"data: {"id":"c3","choices":[{"delta":{"tool_calls":[{"id":"f","type":"function","function":{"name":"quiet_tool","# +
+            #""arguments":"{\"query\":\"synthetic-value\"}"}}]},"index":0}]}"#,
+        #"data: {"id":"c4","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}"#,
+        #"data: {"id":"c5","choices":[{"delta":{"content":"UNDELIVERED_POST_TERMINAL"},"index":0}]}"#,
+        "data: [DONE]",
+        "",
+    ].joined(separator: "\n\n").utf8Data()
+
     @Test
     func `streamText emits Kimi reasoning content`() async throws {
         let request = ProviderRequest(messages: [.user("stream")])
