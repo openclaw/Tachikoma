@@ -293,6 +293,142 @@ struct OpenAICompatibleHelperTests {
         #expect(deltas.last?.finishReason == .toolCalls)
     }
 
+    @Test(arguments: [false, true])
+    func `Compatible streaming assembles tool argument fragments`(initialArgumentsAbsent: Bool) async throws {
+        let initialArguments = initialArgumentsAbsent ? "" : #", "arguments":"""#
+        let deltas = try await self.compatibleToolStream([
+            #"{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"lookup""# + initialArguments + "}}]}",
+            #"{"tool_calls":[{"index":0,"function":{"arguments":"{\"query\":"}}]}"#,
+            #"{"tool_calls":[{"index":0,"function":{"arguments":"\"needle\"}"}}]}"#,
+        ])
+        #expect(deltas.map(\.type) == [.toolCall, .done])
+        let call = try #require(deltas.compactMap(\.toolCall).first)
+        #expect(call.id == "call_1")
+        #expect(call.name == "lookup")
+        #expect(call.arguments == ["query": AnyAgentToolValue(string: "needle")])
+        #expect(deltas.last?.finishReason == .toolCalls)
+    }
+
+    private func compatibleToolStream(_ deltas: [String]) async throws -> [TextStreamDelta] {
+        let observation = try await self.compatibleStreamObservation(deltas)
+        if let error = observation.error {
+            throw error
+        }
+        return observation.deltas
+    }
+
+    @Test(arguments: ["tool_calls", "stop", "[DONE]"])
+    func `Compatible streaming defers complete calls until successful terminal`(terminal: String) async throws {
+        let observation = try await self.compatibleStreamObservation([
+            #"{"tool_calls":[{"index":0,"id":"a","function":{"name":"lookup","arguments":"{}"}}]}"#,
+            #"{"content":"between"}"#,
+        ], terminal: terminal)
+        #expect(observation.error == nil)
+        #expect(observation.deltas.map(\.type) == [.textDelta, .toolCall, .done])
+        #expect(observation.deltas.first?.content == "between")
+        #expect(observation.deltas.compactMap(\.toolCall).first?.id == "a")
+        let expected: FinishReason? = terminal == "tool_calls" ? .toolCalls : terminal == "stop" ? .stop : nil
+        #expect(observation.deltas.last?.finishReason == expected)
+    }
+
+    @Test(arguments: ["length", "content_filter", "unknown"])
+    func `Compatible streaming never emits tools from unsuccessful terminal`(terminal: String) async throws {
+        let observation = try await self.compatibleStreamObservation([
+            #"{"tool_calls":[{"index":0,"id":"a","function":{"name":"lookup","arguments":"{}"}}]}"#,
+        ], terminal: terminal)
+        #expect(observation.error == nil)
+        #expect(observation.deltas.map(\.type) == [.done])
+        let expected: FinishReason = terminal == "length" ? .length : terminal == "content_filter" ? .contentFilter :
+            .other
+        #expect(observation.deltas.last?.finishReason == expected)
+    }
+
+    @Test(arguments: ["tool_calls", "[DONE]", "EOF"])
+    func `Compatible streaming rejects incomplete calls without partial batch delivery`(terminal: String) async throws {
+        let observation = try await self.compatibleStreamObservation([
+            #"{"tool_calls":[{"index":0,"id":"valid","function":{"name":"lookup","arguments":"{}"}}]}"#,
+            #"{"tool_calls":[{"index":1,"id":"invalid","function":{"name":"lookup","arguments":"{"}}]}"#,
+        ], terminal: terminal == "EOF" ? nil : terminal)
+        #expect(observation.error is TachikomaError)
+        #expect(observation.deltas.isEmpty)
+    }
+
+    @Test
+    func `Compatible streaming associates interleaved calls`() async throws {
+        let deltas = try await self.compatibleToolStream([
+            #"{"tool_calls":[{"index":0,"id":"a","function":{"name":"first","arguments":"{\"value\":"}}]}"#,
+            #"{"tool_calls":[{"index":1,"id":"b","function":{"name":"second","arguments":"{\"value\":2}"}}]}"#,
+            #"{"tool_calls":[{"index":0,"function":{"arguments":"1}"}}]}"#,
+        ])
+        #expect(deltas.map(\.type) == [.toolCall, .toolCall, .done])
+        let calls = deltas.compactMap(\.toolCall)
+        #expect(calls.map(\.id) == ["a", "b"])
+        #expect(calls.map(\.name) == ["first", "second"])
+        #expect(calls.map { $0.arguments["value"]?.intValue } == [1, 2])
+    }
+
+    @Test(arguments: [false, true])
+    func `Malformed events cannot silently alter tool arguments`(malformedFirst: Bool) async throws {
+        let first = #"{"tool_calls":[{"index":0,"id":"a","function":{"name":"lookup","arguments":"{\"query\":\""}}]}"#
+        let malformed = #"{"tool_calls":invalid}"#
+        let final = #"{"tool_calls":[{"index":0,"function":{"arguments":"\"}"}}]}"#
+        let deltas = malformedFirst ? [malformed, first, final] : [first, malformed, final]
+        let observation = try await self.compatibleStreamObservation(deltas)
+        #expect(observation.error is TachikomaError)
+        #expect(observation.deltas.isEmpty)
+    }
+
+    private func compatibleStreamObservation(
+        _ deltas: [String],
+        terminal: String? = "tool_calls",
+    ) async throws
+        -> (deltas: [TextStreamDelta], error: (any Error)?)
+    {
+        var frames = deltas.enumerated().map { index, delta in
+            #"data: {"id":"chunk_"# + String(index) + #"","choices":[{"index":0,"delta":"# + delta + "}]}"
+        }
+        if let terminal {
+            if terminal == "[DONE]" {
+                frames.append("data: [DONE]")
+            } else {
+                frames.append(
+                    #"data: {"id":"terminal","choices":[{"index":0,"delta":{},"finish_reason":""# + terminal + #""}]}"#,
+                )
+            }
+            frames += [
+                #"data: {"id":"late","choices":[{"index":0,"delta":{"content":"not delivered","# +
+                    #""tool_calls":[{"index":2,"id":"late","function":{"name":"late","arguments":"{}"}}]}}]}"#,
+                "data: [DONE]",
+            ]
+        }
+        let payload = (frames + [""]).joined(separator: "\n\n").utf8Data()
+        return try await self.withMockedSession { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "text/event-stream"],
+            ))
+            return (response, payload)
+        } operation: { session in
+            let provider = try OpenAICompatibleProvider(
+                modelId: "compatible-fixture",
+                baseURL: "https://mock.compatible/v1",
+                configuration: TachikomaConfiguration(apiKeys: ["openai_compatible": "fixture-key"]),
+                session: session,
+            )
+            let stream = try await provider.streamText(request: ProviderRequest(messages: [.user("Synthetic fixture")]))
+            var result: [TextStreamDelta] = []
+            do {
+                for try await delta in stream {
+                    result.append(delta)
+                }
+                return (result, nil)
+            } catch {
+                return (result, error)
+            }
+        }
+    }
+
     private static let quietContractStream = [
         #"data: {"id":"c1","choices":[{"delta":{"content":"Fixture answer\n"},"index":0}]}"#,
         #"data: {"id":"c2","choices":[{"delta":{"content":"  with whitespace 😀"},"index":0}]}"#,

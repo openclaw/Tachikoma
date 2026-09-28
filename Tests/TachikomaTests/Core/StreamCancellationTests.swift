@@ -157,6 +157,53 @@ struct StreamCancellationTests {
         try #require(await probe.stopped.wait())
         _ = await consumer.result
     }
+
+    #if !canImport(FoundationNetworking)
+    @Test(.timeLimit(.minutes(1)))
+    func `Cancelling compatible fragments discards pending calls and stops transport`() async throws {
+        let id = UUID().uuidString
+        let payload = [
+            #"data: {"id":"partial","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call","# +
+                #""function":{"name":"lookup","arguments":"{"}}]}}]}"#,
+            #"data: {"id":"ready","choices":[{"index":0,"delta":{"content":"ready"}}]}"#,
+            "",
+        ].joined(separator: "\n\n")
+        let probe = CancellationNetworkProbe(initialBody: Data(payload.utf8))
+        CancellationURLProtocol.register(probe, id: id)
+        defer { CancellationURLProtocol.remove(id: id) }
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.protocolClasses = [CancellationURLProtocol.self]
+        let session = URLSession(configuration: sessionConfig)
+        defer { session.invalidateAndCancel() }
+        let provider = try OpenAICompatibleProvider(
+            modelId: "compatible-fixture", baseURL: "https://cancel-fixture.test/\(id)",
+            configuration: TachikomaConfiguration(apiKeys: ["openai_compatible": "fixture-key"]), session: session,
+        )
+        let consumed = CancellationEvent()
+        let consumer = Task {
+            var received: [TextStreamDelta] = []
+            do {
+                let stream = try await provider.streamText(request: ProviderRequest(messages: [.user("fixture")]))
+                for try await delta in stream {
+                    received.append(delta)
+                    if delta.content == "ready" {
+                        consumed.signal()
+                    }
+                }
+            } catch {
+                // Either cancellation termination form must retain the same observed, non-executable events.
+            }
+            return received
+        }
+        defer { consumer.cancel() }
+        try #require(await consumed.wait())
+        consumer.cancel()
+        try #require(await probe.stopped.wait())
+        let received = await consumer.value
+        #expect(received.map(\.type) == [.textDelta])
+        #expect(received.first?.content == "ready")
+    }
+    #endif
 }
 
 private struct CancellationEvent: Sendable {
@@ -196,6 +243,7 @@ private struct HoldingStreamProvider: ModelProvider {
 private struct CancellationNetworkProbe: Sendable {
     let started = CancellationEvent()
     let stopped = CancellationEvent()
+    var initialBody: Data?
 }
 
 private final class CancellationURLProtocol: URLProtocol {
@@ -229,6 +277,9 @@ private final class CancellationURLProtocol: URLProtocol {
                 url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "text/event-stream"],
             ) else { return }
         self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if let body = self.probe?.initialBody {
+            self.client?.urlProtocol(self, didLoad: body)
+        }
         self.probe?.started.signal()
     }
 

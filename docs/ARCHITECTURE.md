@@ -29,6 +29,17 @@ Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible serv
 
 Compatible streaming request construction does not print endpoint/model metadata or request previews. The former `DEBUG_OPENAI` request dump is removed; hosts own presentation of the returned deltas. This does not change separate verbose-generation or response-decoding diagnostics.
 
+Compatible streaming shares one record processor across buffered Linux and incremental Apple transports. It accumulates
+tool argument strings by wire index and decodes each complete JSON object once, preserving recursive values. Complete
+indexless calls remain supported; ambiguous indexless fragments, inconsistent names/IDs, duplicate IDs and malformed
+arguments fail. ID and name metadata must be complete when supplied, not fragmented strings.
+
+Tool callbacks occur in first-seen call order only after the entire batch validates at a successful terminal (`tool_calls`,
+`stop`, or `[DONE]`). Refused/truncated/unknown finish reasons retain their classification without emitting calls. Pending
+calls at bare EOF fail; text-only EOF behavior is unchanged. Malformed records may still be skipped in text-only streams,
+but cannot be combined with tool calls. Consumer cancellation cancels the owned producer/HTTP request and discards pending
+calls. These provider rules complement, rather than replace, the host's terminal and argument-validation checks.
+
 ## Messages, reasoning, and tools
 
 `ModelMessage` is a struct with a role, content parts, identity, timestamp, channel, and metadata. Content parts carry text, images, provider reasoning, tool calls, and tool results. Agent conversations preserve these structured parts instead of reconstructing history from displayed text.

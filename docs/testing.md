@@ -12,6 +12,11 @@ CI runs the complete suite on macOS with Swift 6.2.4. Linux covers both Swift 6.
 
 On macOS, `scripts/test-compatible-stream-output.sh` additionally runs one exact, discovered compatible-provider fixture in child test processes with the former debug environment switch absent and present. It asserts nonempty functional test results and rejects synthetic request markers in both captured output streams. The fixture checks request encoding, ordered text/tool events and terminal stopping with a session-local URLProtocol; no live provider is contacted, and stdout is not redirected inside the parallel test process.
 
+Compatible tool-stream fixtures exercise the public provider with empty/absent initial argument fragments, interleaved
+calls, terminal gating, malformed records and incomplete batches. Platform-independent accumulator tests cover recursive
+JSON, index/identity validation and complete indexless calls. An Apple streaming fixture holds transport open after partial
+arguments, observes a later text marker, then verifies cancellation stops HTTP without emitting a tool or terminal event.
+
 ## Live provider smoke tests
 
 Configure the credentials for the providers you intend to test, then run:
