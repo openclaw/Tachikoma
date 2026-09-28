@@ -5,7 +5,7 @@ struct OpenAICompatibleToolCallAccumulator {
     private struct PendingCall {
         var id: String?
         var name: String?
-        var arguments = ""
+        var arguments: String?
     }
 
     private var calls: [PendingCall] = []
@@ -50,7 +50,11 @@ struct OpenAICompatibleToolCallAccumulator {
             self.calls[position].name = name
         }
         if let arguments = fragment.function?.arguments {
-            self.calls[position].arguments += arguments
+            if self.calls[position].arguments == nil {
+                self.calls[position].arguments = arguments
+            } else {
+                self.calls[position].arguments?.append(contentsOf: arguments)
+            }
         }
     }
 
@@ -60,11 +64,15 @@ struct OpenAICompatibleToolCallAccumulator {
             guard let name = pending.name, !name.isEmpty else {
                 throw TachikomaError.apiError("Compatible stream ended with an unnamed tool call")
             }
+            guard let encodedArguments = pending.arguments else {
+                throw TachikomaError.apiError("Compatible stream ended without tool-call arguments")
+            }
             let arguments: [String: AnyAgentToolValue]
             do {
-                arguments = try JSONDecoder().decode(
+                // Complete empty strings are the legacy no-argument form, unlike a never-received field.
+                arguments = encodedArguments.isEmpty ? [:] : try JSONDecoder().decode(
                     [String: AnyAgentToolValue].self,
-                    from: Data(pending.arguments.utf8),
+                    from: Data(encodedArguments.utf8),
                 )
             } catch {
                 throw TachikomaError.apiError("Compatible stream ended with invalid or incomplete tool-call arguments")

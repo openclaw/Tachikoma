@@ -317,6 +317,32 @@ struct OpenAICompatibleHelperTests {
         return observation.deltas
     }
 
+    @Test(arguments: [false, true], ["", "{}"])
+    func `Compatible streaming preserves explicit complete no argument calls`(
+        indexed: Bool,
+        arguments: String,
+    ) async throws {
+        let index = indexed ? #""index":0,"# : ""
+        let deltas = try await self.compatibleToolStream([
+            #"{"tool_calls":[{"# + index + #""id":"empty","function":{"name":"lookup","arguments":""# +
+                arguments + #""}}]}"#,
+        ])
+        #expect(deltas.map(\.type) == [.toolCall, .done])
+        let call = try #require(deltas.compactMap(\.toolCall).first)
+        #expect(call.id == "empty")
+        #expect(call.name == "lookup")
+        #expect(call.arguments.isEmpty)
+    }
+
+    @Test
+    func `Compatible streaming rejects calls whose argument field never arrives`() async throws {
+        let observation = try await self.compatibleStreamObservation([
+            #"{"tool_calls":[{"index":0,"id":"absent","function":{"name":"lookup"}}]}"#,
+        ])
+        #expect(observation.error is TachikomaError)
+        #expect(observation.deltas.isEmpty)
+    }
+
     @Test(arguments: ["tool_calls", "stop", "[DONE]"])
     func `Compatible streaming defers complete calls until successful terminal`(terminal: String) async throws {
         let observation = try await self.compatibleStreamObservation([

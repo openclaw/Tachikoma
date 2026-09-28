@@ -20,7 +20,7 @@ struct OpenAICompatibleToolCallAccumulatorTests {
         #expect(calls[1].arguments.isEmpty)
     }
 
-    @Test(arguments: ["", "{", #"{"query":"#, "[]", "null", "true", "42"])
+    @Test(arguments: ["{", #"{"query":"#, "[]", "null", "true", "42"])
     func `Invalid or incomplete argument objects refuse the entire batch`(arguments: String) throws {
         var accumulator = OpenAICompatibleToolCallAccumulator()
         try accumulator.append(Self.fragment(index: 0, id: "valid", name: "lookup", arguments: "{}"))
@@ -38,6 +38,21 @@ struct OpenAICompatibleToolCallAccumulatorTests {
         #expect(calls.count == 1)
         #expect(calls[0].id == "call")
         #expect(calls[0].name == "lookup")
+        #expect(calls[0].arguments.isEmpty)
+    }
+
+    @Test(arguments: [false, true], ["", "{}"])
+    func `Complete empty argument forms remain equivalent`(indexed: Bool, arguments: String) throws {
+        var accumulator = OpenAICompatibleToolCallAccumulator()
+        try accumulator.append(Self.fragment(
+            index: indexed ? 0 : nil,
+            id: "empty",
+            name: "lookup",
+            arguments: arguments,
+        ))
+        let calls = try accumulator.finish()
+        #expect(calls.count == 1)
+        #expect(calls[0].id == "empty")
         #expect(calls[0].arguments.isEmpty)
     }
 
@@ -76,6 +91,9 @@ struct OpenAICompatibleToolCallAccumulatorTests {
         var unnamed = OpenAICompatibleToolCallAccumulator()
         try unnamed.append(Self.fragment(index: 0, arguments: "{}"))
         #expect(throws: TachikomaError.self) { try unnamed.finish() }
+        var missingArguments = OpenAICompatibleToolCallAccumulator()
+        try missingArguments.append(Self.fragment(index: 0, name: "lookup"))
+        #expect(throws: TachikomaError.self) { try missingArguments.finish() }
         var duplicated = OpenAICompatibleToolCallAccumulator()
         try duplicated.append(Self.fragment(index: 0, id: "same", name: "lookup", arguments: "{}"))
         try duplicated.append(Self.fragment(index: 1, id: "same", name: "lookup", arguments: "{}"))

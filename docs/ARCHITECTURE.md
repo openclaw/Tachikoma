@@ -31,7 +31,8 @@ Compatible streaming request construction does not print endpoint/model metadata
 
 Compatible streaming shares one record processor across buffered Linux and incremental Apple transports. It accumulates
 tool argument strings by wire index and decodes each complete JSON object once, preserving recursive values. Complete
-indexless calls remain supported; ambiguous indexless fragments, inconsistent names/IDs, duplicate IDs and malformed
+indexless calls remain supported, including the legacy explicit empty-string no-argument form. A never-received argument
+field is distinct and remains an error. Ambiguous indexless fragments, inconsistent names/IDs, duplicate IDs and malformed
 arguments fail. ID and name metadata must be complete when supplied, not fragmented strings.
 
 Tool callbacks occur in first-seen call order only after the entire batch validates at a successful terminal (`tool_calls`,
