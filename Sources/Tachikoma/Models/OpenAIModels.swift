@@ -9,6 +9,7 @@ extension LanguageModel {
         case gpt5ChatLatest
 
         /// GPT-6 series.
+        case gpt61Sol
         case gpt6Astra
         case gpt6Sol
         case gpt6Luna
@@ -39,6 +40,7 @@ extension LanguageModel {
             [
                 .chatLatest,
                 .gpt5ChatLatest,
+                .gpt61Sol,
                 .gpt6Astra,
                 .gpt6Sol,
                 .gpt6Luna,
@@ -61,6 +63,7 @@ extension LanguageModel {
             case let .custom(id): id
             case .chatLatest: "chat-latest"
             case .gpt5ChatLatest: "gpt-5-chat-latest"
+            case .gpt61Sol: "gpt-6.1-sol"
             case .gpt6Astra: "gpt-6-astra"
             case .gpt6Sol: "gpt-6-sol"
             case .gpt6Luna: "gpt-6-luna"
@@ -82,7 +85,7 @@ extension LanguageModel {
             switch self {
             case .chatLatest,
                  .gpt5ChatLatest,
-                 .gpt6Astra, .gpt6Sol, .gpt6Luna,
+                 .gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna,
                  .gpt56Sol, .gpt56Terra, .gpt56Luna,
                  .gpt55,
                  .gpt54, .gpt54Mini, .gpt54Nano,
@@ -95,7 +98,7 @@ extension LanguageModel {
             switch self {
             case .chatLatest,
                  .gpt5ChatLatest,
-                 .gpt6Astra, .gpt6Sol, .gpt6Luna,
+                 .gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna,
                  .gpt56Sol, .gpt56Terra, .gpt56Luna,
                  .gpt55,
                  .gpt54, .gpt54Mini, .gpt54Nano,
@@ -131,7 +134,7 @@ extension LanguageModel {
             switch self {
             case .gpt5ChatLatest:
                 128_000
-            case .gpt6Astra, .gpt6Sol, .gpt6Luna:
+            case .gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna:
                 1_050_000
             case .gpt56Sol, .gpt56Terra, .gpt56Luna:
                 372_000
@@ -146,7 +149,9 @@ extension LanguageModel {
             let compact = modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 .replacingOccurrences(of: "-", with: "")
                 .replacingOccurrences(of: "_", with: "")
+                .replacingOccurrences(of: ".", with: "")
             return switch compact {
+            case "gpt61", "gpt61sol": .gpt61Sol
             case "gpt6", "gpt6astra": .gpt6Astra
             case "gpt6sol": .gpt6Sol
             case "gpt6luna": .gpt6Luna
@@ -156,6 +161,10 @@ extension LanguageModel {
 
         var isGPT6: Bool {
             Self.gpt6Model(for: self.modelId) != nil
+        }
+
+        var supportsGPT6NoReasoning: Bool {
+            self == .gpt6Sol || self == .gpt6Luna
         }
 
         /// Resolves a GPT-5.6 model ID, including provider-qualified IDs used by compatible APIs.

@@ -17,12 +17,12 @@ struct OpenAIResponsesProviderTests {}
 
 @Suite(.serialized)
 struct OpenAIResponsesProviderTests {
-    @Test(arguments: [LanguageModel.OpenAI.gpt6Astra, .gpt6Sol, .gpt6Luna])
+    @Test(arguments: [LanguageModel.OpenAI.gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna])
     func `gpt 6 request parameters`(model: LanguageModel.OpenAI) async throws {
         let config = TachikomaConfiguration(loadFromEnvironment: false)
         config.setAPIKey("live-openai", for: .openai)
         let efforts: [OpenAIOptions.ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
-        for effort in efforts + (model == .gpt6Astra ? [] : [.none]) {
+        for effort in efforts + (model == .gpt6Sol || model == .gpt6Luna ? [.none] : []) {
             try await self.withMockedSession { request in
                 let body = try #require(Self.bodyData(from: request))
                 let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -56,6 +56,7 @@ struct OpenAIResponsesProviderTests {
     @Test(arguments: [
         (LanguageModel.OpenAI.gpt6Astra, OpenAIOptions.ReasoningEffort.none),
         (.gpt6Astra, .minimal), (.gpt6Sol, .minimal), (.gpt6Luna, .minimal),
+        (.gpt61Sol, .none), (.gpt61Sol, .minimal),
     ])
     func `gpt 6 rejects unsupported effort`(
         model: LanguageModel.OpenAI,
@@ -629,6 +630,7 @@ struct OpenAIResponsesProviderTests {
         (.gpt56Luna, "gpt-5.6-luna"),
         (.gpt6Astra, "gpt-6-astra"),
         (.gpt6Sol, "gpt-6-sol"),
+        (.gpt61Sol, "gpt-6.1-sol"),
         (.gpt6Luna, "gpt-6-luna"),
     ])
     func `Codex OAuth provider sends image input through ChatGPT Responses transport`(

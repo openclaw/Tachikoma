@@ -17,7 +17,7 @@ struct GPT6IntegrationTests {
         .init(maxTokens: 4096, providerOptions: .init(openai: .init(verbosity: .low, reasoningEffort: .low)))
     }
 
-    @Test(arguments: [LanguageModel.OpenAI.gpt6Astra, .gpt6Sol, .gpt6Luna])
+    @Test(arguments: [LanguageModel.OpenAI.gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna])
     func vision(model: LanguageModel.OpenAI) async throws {
         let redPNG = [
             "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAABWklEQVR4nO3OQQ0AMBAEofVv+iqDxzRBALvtg/wgzg/i/CDOD+L8",
@@ -43,7 +43,7 @@ struct GPT6IntegrationTests {
         #expect(try #require(result.usage).outputTokens > 0)
     }
 
-    @Test(arguments: [LanguageModel.OpenAI.gpt6Astra, .gpt6Sol, .gpt6Luna])
+    @Test(arguments: [LanguageModel.OpenAI.gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna])
     func streaming(model: LanguageModel.OpenAI) async throws {
         let provider = try ProviderFactory.createProvider(for: .openai(model), configuration: self.configuration())
         let stream = try await provider.streamText(request: .init(
@@ -63,7 +63,7 @@ struct GPT6IntegrationTests {
         #expect(done)
     }
 
-    @Test(arguments: [LanguageModel.OpenAI.gpt6Astra, .gpt6Sol, .gpt6Luna])
+    @Test(arguments: [LanguageModel.OpenAI.gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna])
     func `tool round trip`(model: LanguageModel.OpenAI) async throws {
         let tool = createTool(name: "lookup_code", description: "Look up the secret test code", parameters: []) { _ in
             AnyAgentToolValue(string: "TACHIKOMA-7391")

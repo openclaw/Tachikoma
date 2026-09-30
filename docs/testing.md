@@ -27,7 +27,7 @@ INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --fi
 
 The compile-time flag includes the integration suite; `INTEGRATION_TESTS=1` enables it. The suite requires at least one eligible provider credential. The manual **Live Providers** workflow runs the same command on the default branch and rejects an empty credential set before building.
 
-For GPT-6 Astra, Sol, and Luna, run `INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter GPT6IntegrationTests` with an `OPENAI_API_KEY` that can access all three models. This checks image input, streaming completion, a full tool-result round trip, and Sol/Luna generation with reasoning disabled; a missing key fails the suite.
+For GPT-6 Astra, Sol, Luna, and GPT-6.1 Sol, run `INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter GPT6IntegrationTests` with an `OPENAI_API_KEY` that can access all four models. This checks image input, streaming completion, a full tool-result round trip, and Sol 6/Luna 6 generation with reasoning disabled; a missing key fails the suite.
 
 The Codex OAuth vision smoke also requires `TACHIKOMA_INTEGRATION_PROFILE_DIR` naming a profile with usable OAuth credentials and no higher-priority OpenAI API key. Credentials should be supplied through the environment or configured profile, never committed to fixtures.
 

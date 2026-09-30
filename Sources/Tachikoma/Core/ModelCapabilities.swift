@@ -248,6 +248,7 @@ public final class ModelCapabilityRegistry: @unchecked Sendable {
         self.capabilities["openai:chat-latest"] = gpt5Capabilities
         self.capabilities["openai:gpt-5-chat-latest"] = gpt5Capabilities
         self.capabilities["openai:gpt-6-astra"] = gptReasoningCapabilities
+        self.capabilities["openai:gpt-6.1-sol"] = gptReasoningCapabilities
         self.capabilities["openai:gpt-6-sol"] = gptReasoningCapabilities
         self.capabilities["openai:gpt-6-luna"] = gptReasoningCapabilities
         self.capabilities["openai:gpt-5.6-sol"] = gptReasoningCapabilities
@@ -464,7 +465,7 @@ extension GenerationSettings {
         if
             case let .openai(openai) = model,
             let gpt6 = LanguageModel.OpenAI.gpt6Model(for: openai.modelId),
-            gpt6 != .gpt6Astra,
+            gpt6.supportsGPT6NoReasoning,
             self.providerOptions.openai?.reasoningEffort == OpenAIOptions.ReasoningEffort.none
         {
             capabilities.excludedParameters.subtract(["temperature", "topP"])

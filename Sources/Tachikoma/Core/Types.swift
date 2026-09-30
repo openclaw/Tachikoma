@@ -187,7 +187,7 @@ public enum OpenAIAPIMode: String, Sendable, CaseIterable {
         // Determine default API mode for a given model
         switch model {
         case .chatLatest, .gpt5ChatLatest,
-             .gpt6Astra, .gpt6Sol, .gpt6Luna,
+             .gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna,
              .gpt56Sol, .gpt56Terra, .gpt56Luna,
              .gpt5, .gpt5Pro, .gpt5Mini, .gpt5Nano, .gpt54, .gpt54Mini, .gpt54Nano, .gpt55:
             .responses // GPT-5 defaults to Responses API

@@ -2,7 +2,7 @@ import Testing
 @testable import Tachikoma
 
 struct GPT6ModelTests {
-    @Test(arguments: [LanguageModel.OpenAI.gpt6Astra, .gpt6Sol, .gpt6Luna])
+    @Test(arguments: [LanguageModel.OpenAI.gpt61Sol, .gpt6Astra, .gpt6Sol, .gpt6Luna])
     func `catalog and parsing`(model: LanguageModel.OpenAI) throws {
         let expected = LanguageModel.openai(model)
         for name in [
@@ -38,7 +38,19 @@ struct GPT6ModelTests {
     func `aliases do not capture unknown models`() throws {
         #expect(LanguageModel.parse(from: "gpt-6") == .openai(.gpt6Astra))
         #expect(try ModelSelector.parseModel("gpt6") == .openai(.gpt6Astra))
-        for name in ["gpt-60", "gpt-6-terra", "my-gpt6-distill", "gpt-6-astra-preview"] {
+        for alias in ["gpt-6.1", "gpt6.1", "gpt61sol", "gpt-6-1-sol"] {
+            #expect(LanguageModel.parse(from: alias) == .openai(.gpt61Sol))
+            #expect(try ModelSelector.parseModel(alias) == .openai(.gpt61Sol))
+        }
+        for name in [
+            "gpt-60",
+            "gpt-6-terra",
+            "my-gpt6-distill",
+            "gpt-6-astra-preview",
+            "gpt-6.10-sol",
+            "gpt-6.1-astra",
+            "my-gpt61sol-distill",
+        ] {
             #expect(LanguageModel.parse(from: name) == nil)
         }
     }
@@ -46,6 +58,7 @@ struct GPT6ModelTests {
     @Test(arguments: [
         (LanguageModel.OpenAI.gpt6Astra, 10.0, 50.0),
         (.gpt6Sol, 2.0, 10.0),
+        (.gpt61Sol, 2.0, 10.0),
         (.gpt6Luna, 0.1, 0.5),
     ])
     func `standard pricing`(model: LanguageModel.OpenAI, input: Double, output: Double) {

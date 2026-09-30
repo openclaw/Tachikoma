@@ -550,6 +550,7 @@ public struct ModelCostCalculator: Sendable {
             case .gpt5ChatLatest: (1.25, 10.00)
             case .gpt6Astra: (10.00, 50.00)
             case .gpt6Sol: (2.00, 10.00)
+            case .gpt61Sol: (2.00, 10.00)
             case .gpt6Luna: (0.10, 0.50)
             case .gpt56Sol: (5.00, 30.00)
             case .gpt56Terra: (2.50, 15.00)
@@ -566,6 +567,7 @@ public struct ModelCostCalculator: Sendable {
                 switch LanguageModel.parse(from: id) {
                 case .openai(.gpt6Astra): (10.00, 50.00)
                 case .openai(.gpt6Sol): (2.00, 10.00)
+                case .openai(.gpt61Sol): (2.00, 10.00)
                 case .openai(.gpt6Luna): (0.10, 0.50)
                 case .openai(.gpt56Sol): (5.00, 30.00)
                 case .openai(.gpt56Terra): (2.50, 15.00)
