@@ -118,32 +118,20 @@ struct OpenAICompatibleHelper {
 
         let finishReason = Self.mapFinishReason(choice.finishReason)
 
-        // Convert tool calls if present
-        let toolCalls = choice.message.toolCalls?.compactMap { openAIToolCall -> AgentToolCall? in
-            // Parse JSON string to dictionary and convert to AnyAgentToolValue format
-            guard
-                let data = openAIToolCall.function.arguments.data(using: String.Encoding.utf8),
-                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else
-            {
-                return nil
+        // Share the streaming decoder: "" is a no-argument call, and invalid JSON fails the response.
+        let toolCalls: [AgentToolCall]? = if let openAIToolCalls = choice.message.toolCalls {
+            try openAIToolCalls.map { openAIToolCall in
+                try AgentToolCall(
+                    id: openAIToolCall.id,
+                    name: openAIToolCall.function.name,
+                    arguments: OpenAICompatibleToolCallAccumulator.decodeArguments(
+                        openAIToolCall.function.arguments,
+                        invalidMessage: "Compatible response contained invalid or incomplete tool-call arguments",
+                    ),
+                )
             }
-
-            var arguments: [String: AnyAgentToolValue] = [:]
-            for (key, value) in json {
-                do {
-                    arguments[key] = try AnyAgentToolValue.fromJSON(value)
-                } catch {
-                    // Log warning and skip arguments that can't be converted
-                    print("[WARNING] Failed to convert tool argument '\(key)': \(error)")
-                    continue
-                }
-            }
-
-            return AgentToolCall(
-                id: openAIToolCall.id,
-                name: openAIToolCall.function.name,
-                arguments: arguments,
-            )
+        } else {
+            nil
         }
 
         return ProviderResponse(
