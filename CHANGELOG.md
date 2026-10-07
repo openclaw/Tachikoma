@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+- Refresh Swift package pins for Async Algorithms 1.1.7, Collections 1.7.2, Configuration 1.2.2, NIO 2.104.0, and Service Lifecycle 2.12.1; update SwiftFormat to 0.63.1 and setup-swift to 1.14.1 while retaining Swift 6.2 support.
+
 ### Fixed
 - Preserve empty and nested non-streaming OpenAI-compatible tool arguments, and suppress calls on truncated, filtered, or unknown terminals while retaining text and usage. Thanks @SebTardif (#114).
 - Assemble fragmented OpenAI-compatible tool arguments by call index, preserve nested JSON on every platform, and reject incomplete or inconsistent calls before delivering the batch; refused and truncated streams no longer emit tool calls.
