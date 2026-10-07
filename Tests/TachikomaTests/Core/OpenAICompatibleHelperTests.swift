@@ -932,6 +932,39 @@ struct OpenAICompatibleHelperTests {
         #expect(try String(data: #require(capture.body), encoding: .utf8)?.contains("private reasoning") == false)
     }
 
+    @Test(arguments: ["", "{}"])
+    func `generateText keeps a no-argument tool call`(arguments: String) async throws {
+        let response = try await self.generateToolCallResponse(arguments: [arguments])
+        #expect(response.finishReason == .toolCalls)
+        let calls = try #require(response.toolCalls)
+        #expect(calls.map(\.id) == ["c1"])
+        #expect(calls.map(\.name) == ["ping"])
+        #expect(calls[0].arguments.isEmpty)
+    }
+
+    @Test
+    func `generateText keeps every tool call when one has empty arguments`() async throws {
+        let response = try await self.generateToolCallResponse(arguments: ["", #"{"ok":true}"#])
+        let calls = try #require(response.toolCalls)
+        #expect(response.finishReason == .toolCalls)
+        #expect(calls.map(\.id) == ["c1", "c2"])
+        #expect(calls.map(\.name) == ["ping", "lookup"])
+        #expect(calls[0].arguments.isEmpty)
+        #expect(calls[1].arguments["ok"] == AnyAgentToolValue(bool: true))
+    }
+
+    @Test(arguments: ["{", "[]", "null", "true", "42"])
+    func `generateText drops a malformed tool call and keeps the valid one`(
+        arguments: String,
+    ) async throws {
+        let response = try await self.generateToolCallResponse(arguments: ["{}", arguments])
+        let calls = try #require(response.toolCalls)
+        #expect(response.finishReason == .toolCalls)
+        #expect(calls.map(\.id) == ["c1"])
+        #expect(calls.map(\.name) == ["ping"])
+        #expect(calls[0].arguments.isEmpty)
+    }
+
     @Test
     func `non-200 responses surface TachikomaError.apiError`() async {
         await self.withMockedSession { urlRequest in
@@ -1021,6 +1054,57 @@ struct OpenAICompatibleHelperTests {
             headerFields: ["Content-Type": "application/json"],
         )!
         return (response, data)
+    }
+
+    private func generateToolCallResponse(arguments: [String]) async throws -> ProviderResponse {
+        try await self.withMockedSession { urlRequest in
+            self.jsonResponse(for: urlRequest, data: Self.toolCallsPayload(arguments: arguments))
+        } operation: { session in
+            try await self.generateText(session: session)
+        }
+    }
+
+    private func generateText(session: URLSession) async throws -> ProviderResponse {
+        try await OpenAICompatibleHelper.generateText(
+            request: ProviderRequest(messages: [ModelMessage(role: .user, content: [.text("ping")])]),
+            modelId: "compatible-model",
+            baseURL: "https://mock.compatible",
+            apiKey: "sk-test",
+            providerName: "TestProvider",
+            session: session,
+        )
+    }
+
+    private static func toolCallsPayload(arguments: [String]) -> Data {
+        let names = ["ping", "lookup", "third"]
+        let toolCalls: [[String: Any]] = arguments.enumerated().map { index, encoded in
+            [
+                "id": "c\(index + 1)",
+                "type": "function",
+                "function": [
+                    "name": names[index],
+                    "arguments": encoded,
+                ],
+            ]
+        }
+        let dict: [String: Any] = [
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1_700_000_000,
+            "model": "compatible-model",
+            "choices": [
+                [
+                    "index": 0,
+                    "message": [
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": toolCalls,
+                    ],
+                    "finish_reason": "tool_calls",
+                ],
+            ],
+        ]
+        return try! JSONSerialization.data(withJSONObject: dict)
     }
 
     private static func chatCompletionPayload(text: String) -> Data {

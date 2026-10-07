@@ -118,32 +118,26 @@ struct OpenAICompatibleHelper {
 
         let finishReason = Self.mapFinishReason(choice.finishReason)
 
-        // Convert tool calls if present
-        let toolCalls = choice.message.toolCalls?.compactMap { openAIToolCall -> AgentToolCall? in
-            // Parse JSON string to dictionary and convert to AnyAgentToolValue format
-            guard
-                let data = openAIToolCall.function.arguments.data(using: String.Encoding.utf8),
-                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else
-            {
-                return nil
-            }
-
-            var arguments: [String: AnyAgentToolValue] = [:]
-            for (key, value) in json {
-                do {
-                    arguments[key] = try AnyAgentToolValue.fromJSON(value)
-                } catch {
-                    // Log warning and skip arguments that can't be converted
-                    print("[WARNING] Failed to convert tool argument '\(key)': \(error)")
-                    continue
+        // Unsuccessful terminals retain their text/status without exposing executable calls.
+        let decodesToolCalls = finishReason == nil || finishReason == .stop || finishReason == .toolCalls
+        let toolCalls: [AgentToolCall]? = if decodesToolCalls, let openAIToolCalls = choice.message.toolCalls {
+            openAIToolCalls.compactMap { openAIToolCall -> AgentToolCall? in
+                // Preserve non-streaming behavior: omit malformed calls, not the whole response.
+                guard
+                    let arguments = try? OpenAICompatibleToolCallAccumulator.decodeArguments(
+                        openAIToolCall.function.arguments,
+                    ) else
+                {
+                    return nil
                 }
+                return AgentToolCall(
+                    id: openAIToolCall.id,
+                    name: openAIToolCall.function.name,
+                    arguments: arguments,
+                )
             }
-
-            return AgentToolCall(
-                id: openAIToolCall.id,
-                name: openAIToolCall.function.name,
-                arguments: arguments,
-            )
+        } else {
+            nil
         }
 
         return ProviderResponse(

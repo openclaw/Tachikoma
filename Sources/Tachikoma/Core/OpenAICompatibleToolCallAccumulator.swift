@@ -67,21 +67,28 @@ struct OpenAICompatibleToolCallAccumulator {
             guard let encodedArguments = pending.arguments else {
                 throw TachikomaError.apiError("Compatible stream ended without tool-call arguments")
             }
-            let arguments: [String: AnyAgentToolValue]
-            do {
-                // Complete empty strings are the legacy no-argument form, unlike a never-received field.
-                arguments = encodedArguments.isEmpty ? [:] : try JSONDecoder().decode(
-                    [String: AnyAgentToolValue].self,
-                    from: Data(encodedArguments.utf8),
-                )
-            } catch {
-                throw TachikomaError.apiError("Compatible stream ended with invalid or incomplete tool-call arguments")
-            }
+            // Complete empty strings are the legacy no-argument form, unlike a never-received field.
+            let arguments = try Self.decodeArguments(encodedArguments)
             let id = pending.id ?? UUID().uuidString
             guard identifiers.insert(id).inserted else {
                 throw TachikomaError.apiError("Compatible stream returned duplicate tool-call identifiers")
             }
             return AgentToolCall(id: id, name: name, arguments: arguments)
+        }
+    }
+
+    /// Decode one complete object, including the legacy empty-string no-argument form.
+    static func decodeArguments(_ encodedArguments: String) throws -> [String: AnyAgentToolValue] {
+        if encodedArguments.isEmpty {
+            return [:]
+        }
+        do {
+            return try JSONDecoder().decode(
+                [String: AnyAgentToolValue].self,
+                from: Data(encodedArguments.utf8),
+            )
+        } catch {
+            throw TachikomaError.apiError("Compatible stream ended with invalid or incomplete tool-call arguments")
         }
     }
 }

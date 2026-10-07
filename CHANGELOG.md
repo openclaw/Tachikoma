@@ -5,6 +5,7 @@ All notable changes to the Tachikoma project will be documented in this file.
 ## Unreleased
 
 ### Fixed
+- Preserve empty and nested non-streaming OpenAI-compatible tool arguments, and suppress calls on truncated, filtered, or unknown terminals while retaining text and usage. Thanks @SebTardif (#114).
 - Assemble fragmented OpenAI-compatible tool arguments by call index, preserve nested JSON on every platform, and reject incomplete or inconsistent calls before delivering the batch; refused and truncated streams no longer emit tool calls.
 - Stop OpenAI-compatible streaming from dumping request payloads and endpoint metadata to process output, including GPT-5-named models and the former `DEBUG_OPENAI` switch; preserve encoded requests and stream delivery.
 

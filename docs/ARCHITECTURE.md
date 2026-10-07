@@ -29,6 +29,8 @@ Adapters live under `Sources/Tachikoma/Providers`. Hosted OpenAI-compatible serv
 
 Compatible streaming request construction does not print endpoint/model metadata or request previews. The former `DEBUG_OPENAI` request dump is removed; hosts own presentation of the returned deltas. This does not change separate verbose-generation or response-decoding diagnostics.
 
+Non-streaming compatible responses decode tool arguments as complete JSON objects, preserving recursive values and the explicit empty-string no-argument form. Calls are returned only for `tool_calls`, `stop`, or an omitted finish reason. Truncated, filtered, and unknown terminals retain their text, usage, and finish reason without tool calls. Malformed argument objects are omitted individually, preserving the existing non-streaming partial-response behavior.
+
 Compatible streaming shares one record processor across buffered Linux and incremental Apple transports. It accumulates
 tool argument strings by wire index and decodes each complete JSON object once, preserving recursive values. Complete
 indexless calls remain supported, including the legacy explicit empty-string no-argument form. A never-received argument
