@@ -4,17 +4,21 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
-### Changed
-- Refresh Swift package pins for Async Algorithms 1.1.7, Collections 1.7.2, Configuration 1.2.2, NIO 2.104.0, and Service Lifecycle 2.12.1; update SwiftFormat to 0.63.1 and setup-swift to 1.14.1 while retaining Swift 6.2 support.
+## 0.6.0 - 2026-10-11
 
-### Fixed
-- Preserve empty and nested non-streaming OpenAI-compatible tool arguments, and suppress calls on truncated, filtered, or unknown terminals while retaining text and usage. Thanks @SebTardif (#114).
-- Assemble fragmented OpenAI-compatible tool arguments by call index, preserve nested JSON on every platform, and reject incomplete or inconsistent calls before delivering the batch; refused and truncated streams no longer emit tool calls.
-- Stop OpenAI-compatible streaming from dumping request payloads and endpoint metadata to process output, including GPT-5-named models and the former `DEBUG_OPENAI` switch; preserve encoded requests and stream delivery.
+**Highlights:** Add typed OpenAI model support with Responses generation and streaming, fix request-data exposure in streaming diagnostics, and preserve tool arguments safely.
 
 ### Added
 - Added GPT-6.1 Sol with typed selection, Responses routing, current limits and pricing, and rejection of unsupported `none` and `minimal` reasoning efforts.
 - Added GPT-6 Astra, Sol, and Luna with typed model selection, Responses generation and streaming, vision and tools, current context limits and pricing, and model-specific reasoning validation.
+
+### Fixed
+- Stop OpenAI-compatible streaming from dumping request payloads and endpoint metadata to process output, including GPT-5-named models and the former `DEBUG_OPENAI` switch; preserve encoded requests and stream delivery.
+- Preserve empty and nested non-streaming OpenAI-compatible tool arguments, and suppress calls on truncated, filtered, or unknown terminals while retaining text and usage. Thanks @SebTardif (#114).
+- Assemble fragmented OpenAI-compatible tool arguments by call index, preserve nested JSON on every platform, and reject incomplete or inconsistent calls before delivering the batch; refused and truncated streams no longer emit tool calls.
+
+### Changed
+- Refresh Swift package pins for Async Algorithms 1.1.7, Collections 1.7.2, Configuration 1.2.2, NIO 2.104.0, and Service Lifecycle 2.12.1; update SwiftFormat to 0.63.1 and setup-swift to 1.14.1 while retaining Swift 6.2 support.
 
 ## 0.5.1 - 2026-09-23
 
