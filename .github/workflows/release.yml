@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer matching VERSION and a dated CHANGELOG section
+        required: true
+        type: string
+      dry_run:
+        description: Build and verify without creating tags or publishing
+        default: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.repository }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    env:
+      TACHIKOMA_TEST_MODE: mock
+      TACHIKOMA_DISABLE_API_TESTS: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.3'
+      - name: Build and test the Swift package
+        run: |
+          swift build -c release --jobs 2
+          swift test --jobs 2
+          python3 -c 'import pathlib,re; source=pathlib.Path("Sources/Tachikoma/Core/Tachikoma.swift").read_text(); assert re.search(r"public let tachikomaVersion = \"([^\"]+)\"", source)[1] == pathlib.Path("VERSION").read_text().strip()'
+
+  release:
+    needs: test
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      statuses: read
+    uses: openclaw/release-workflows/.github/workflows/release-source.yml@v1
+    with:
+      version: ${{ inputs.version || github.ref_name }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      source-archives: true
+      require-signed-tag: true
+      strict-checks: true
+      ci-check-events: '["push"]'
