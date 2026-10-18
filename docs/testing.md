@@ -8,7 +8,7 @@ TACHIKOMA_TEST_MODE=mock TACHIKOMA_DISABLE_API_TESTS=true swift test --parallel
 
 This runs the unit and mocked provider suites without API keys or external services. Provider fixtures use URLProtocol and injected sessions; MCP lifecycle fixtures start local child processes. `TestHelpers` creates isolated provider configurations and mock factory overrides.
 
-CI runs the complete suite on macOS with Swift 6.2.4. Linux covers both Swift 6.2.4 and Swift 6.4.0. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
+CI runs the complete suite on the `xcode-27` macOS runner with Xcode 27's bundled Swift 6.4 toolchain and a macOS 14 deployment target. Linux covers both Swift 6.2.4 and Swift 6.4.0. Its Linux job retains two platform exclusions, `OpenAIAudioProviderTests` and `ProviderEndToEndTests`, because FoundationNetworking's URLProtocol implementation cannot host those fixtures. No credentialed provider tests belong in the default CI run.
 
 On macOS, `scripts/test-compatible-stream-output.sh` additionally runs one exact, discovered compatible-provider fixture in child test processes with the former debug environment switch absent and present. It asserts nonempty functional test results and rejects synthetic request markers in both captured output streams. The fixture checks request encoding, ordered text/tool events and terminal stopping with a session-local URLProtocol; no live provider is contacted, and stdout is not redirected inside the parallel test process.
 

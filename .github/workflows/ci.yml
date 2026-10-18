@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
   TACHIKOMA_DISABLE_API_TESTS: "true"
   TACHIKOMA_TEST_MODE: mock
 
@@ -25,9 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS 15
-            os: macos-15
-            swift: '6.2.4'
+          - name: macOS 27
+            os: xcode-27
+            swift: '6.4.0'
           - name: Ubuntu 24.04
             os: ubuntu-24.04
             swift: '6.2.4'
@@ -40,11 +41,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode 26.3
+      - name: Select Xcode 27
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '26.3'
+          xcode-version: '27.0'
 
       - name: Install Swift ${{ matrix.swift }}
         if: runner.os == 'Linux'
@@ -70,6 +71,14 @@ jobs:
       - name: Build release products
         run: swift build -c release --verbose
 
+      - name: Verify macOS deployment targets
+        if: runner.os == 'macOS'
+        run: |
+          for binary in ai-cli gpt5cli tachikoma; do
+            xcrun vtool -show-build ".build/release/$binary" |
+              awk '$1 == "minos" { found = 1; if ($2 != "14.0") bad = 1 } END { exit !found || bad }'
+          done
+
       - name: Run hermetic tests (macOS)
         if: runner.os == 'macOS'
         run: swift test --parallel
@@ -92,20 +101,21 @@ jobs:
 
   package:
     name: Package contract
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Select Xcode 26.3
+      - name: Select Xcode 27
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '26.3'
+          xcode-version: '27.0'
 
       - name: Validate package metadata and dependency graph
         run: |
           package_dump="$(swift package dump-package)"
           jq -e '.swiftLanguageVersions[] | select(. == "6")' <<< "$package_dump" >/dev/null
+          jq -e 'any(.platforms[]; .platformName == "macos" and .version == "14.0")' <<< "$package_dump" >/dev/null
           if jq -e 'any(.dependencies[]; .. | .identity? == "commander")' <<< "$package_dump" >/dev/null; then
             echo "::error::The root package must not depend on Commander."
             exit 1
@@ -115,7 +125,7 @@ jobs:
 
   style:
     name: Swift style
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
