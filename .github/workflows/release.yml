@@ -22,11 +22,12 @@ concurrency:
 
 jobs:
   test:
-    runs-on: macos-15
+    runs-on: xcode-27
     permissions:
       contents: read
     timeout-minutes: 30
     env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
       TACHIKOMA_TEST_MODE: mock
       TACHIKOMA_DISABLE_API_TESTS: 'true'
     steps:
@@ -35,7 +36,7 @@ jobs:
           persist-credentials: false
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '26.3'
+          xcode-version: '27.0'
       - name: Build and test the Swift package
         run: |
           swift build -c release --jobs 2

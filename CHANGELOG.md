@@ -4,6 +4,8 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+- Move macOS CI, live-provider checks, and release validation to Xcode 27 runners while preserving the macOS 14 deployment target and Swift 6.2 source minimum.
+
 ## 0.6.0 - 2026-10-11
 
 **Highlights:** Add typed OpenAI model support with Responses generation and streaming, fix request-data exposure in streaming diagnostics, and preserve tool arguments safely.
