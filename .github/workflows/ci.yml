@@ -113,6 +113,7 @@ jobs:
 
       - name: Validate package metadata and dependency graph
         run: |
+          python3 scripts/test-live-provider-workflow.py
           package_dump="$(swift package dump-package)"
           jq -e '.swiftLanguageVersions[] | select(. == "6")' <<< "$package_dump" >/dev/null
           jq -e 'any(.platforms[]; .platformName == "macos" and .version == "14.0")' <<< "$package_dump" >/dev/null

@@ -25,7 +25,7 @@ Configure the credentials for the providers you intend to test, then run:
 INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter ProviderIntegrationTests
 ```
 
-The compile-time flag includes the integration suite; `INTEGRATION_TESTS=1` enables it. The suite requires at least one eligible provider credential. The manual **Live Providers** workflow runs the same command on the default branch and rejects an empty credential set before building.
+The compile-time flag includes the integration suite; `INTEGRATION_TESTS=1` enables it. The suite requires at least one eligible provider credential. The manual **Live Providers** workflow runs the same command on the default branch and skips setup and tests with a notice when no eligible credential is configured. A skipped run provides no live-provider proof. Its credential guard supports macOS's system Bash 3.2; run `python3 scripts/test-live-provider-workflow.py` for synthetic guard regression tests.
 
 For GPT-6 Astra, Sol, Luna, and GPT-6.1 Sol, run `INTEGRATION_TESTS=1 swift test --no-parallel -Xswiftc -DLIVE_PROVIDER_TESTS --filter GPT6IntegrationTests` with an `OPENAI_API_KEY` that can access all four models. This checks image input, streaming completion, a full tool-result round trip, and Sol 6/Luna 6 generation with reasoning disabled; a missing key fails the suite.
 
