@@ -17,6 +17,40 @@ enum ArithmeticExpression {
         return value.rendered
     }
 
+    /// Linux `NSNumber.stringValue` is `Double.description`, so a whole
+    /// value is spelled `4.0`. Darwin and the previous calculator spell it
+    /// as `4`. A fractional value such as `3.5` stays on `NSNumber`.
+    static func render(_ value: Double) -> String {
+        guard value.isFinite, value == value.rounded(.towardZero) else {
+            return NSNumber(value: value).stringValue
+        }
+        return self.wholeRealText(value)
+    }
+
+    /// Prefer plain integer digits when the platform spelling is `4` or `4.0`.
+    /// Larger whole values that Darwin already prints in scientific form stay
+    /// as that spelling, still without a trailing `.0`.
+    private static func wholeRealText(_ value: Double) -> String {
+        let platform = NSNumber(value: value).stringValue
+        if let exact = Int64(exactly: value) {
+            let digits = exact == 0 && value.sign == .minus ? "-0" : String(exact)
+            if platform == digits || platform == "\(digits).0" {
+                return digits
+            }
+        }
+        return self.withoutTrailingWholeFraction(platform)
+    }
+
+    private static func withoutTrailingWholeFraction(_ spelled: String) -> String {
+        guard spelled.hasSuffix(".0") else { return spelled }
+        let digits = spelled.dropLast(2)
+        let body = digits.first == "-" ? digits.dropFirst() : Substring(digits)
+        guard !body.isEmpty, body.allSatisfy({ $0 >= "0" && $0 <= "9" }) else {
+            return spelled
+        }
+        return String(digits)
+    }
+
     /// "/" of two integers truncates toward zero. `1 / 2` stays 0.
     private static func truncatingDivide(_ lhs: Decimal, by rhs: Decimal) -> Decimal {
         if rhs == 0 {
@@ -38,7 +72,7 @@ enum ArithmeticExpression {
             case let .integer(value):
                 NSDecimalNumber(decimal: value).stringValue
             case let .real(value):
-                NSNumber(value: value).stringValue
+                ArithmeticExpression.render(value)
             }
         }
 

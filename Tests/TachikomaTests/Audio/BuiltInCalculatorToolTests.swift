@@ -109,6 +109,15 @@ struct BuiltInCalculatorToolTests {
     }
 
     @Test
+    func `real formatter prints a whole double without a fraction`() {
+        #expect(ArithmeticExpression.render(4.0) == "4")
+        #expect(ArithmeticExpression.render(3.5) == "3.5")
+        #expect(ArithmeticExpression.render(-8.0) == "-8")
+        #expect(ArithmeticExpression.render(100.0) == "100")
+        #expect(ArithmeticExpression.render(-2.0) == "-2")
+    }
+
+    @Test
     func `registered calculator survives invalid then evaluates`() async {
         let registry = RealtimeToolRegistry()
         await registry.registerBuiltInTools()
