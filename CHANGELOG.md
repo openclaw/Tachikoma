@@ -4,6 +4,8 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+- Pin the shared source-release workflow to a reviewed commit with complete release listing and exact-byte draft retry checks.
+
 - Fix live-provider credential detection on macOS Bash 3.2 and skip live setup and tests cleanly when no provider credential is configured.
 
 - Move macOS CI, live-provider checks, and release validation to Xcode 27 runners while preserving the macOS 14 deployment target and Swift 6.2 source minimum.

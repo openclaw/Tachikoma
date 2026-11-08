@@ -1,7 +1,8 @@
 # Releasing Tachikoma
 
 Tachikoma ships as a SwiftPM library. The release workflow uses
-`openclaw/release-workflows/.github/workflows/release-source.yml@v1` to publish
+`openclaw/release-workflows/.github/workflows/release-source.yml` at the commit
+pinned in `.github/workflows/release.yml` to publish
 GitHub Releases with the exact dated changelog section, frozen-commit source ZIP
 and tar archives, an asset inventory, and SHA-256 checksums. There is no npm,
 Homebrew binary, or Sparkle publication.
