@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 struct AnthropicInterleavedDefaultsTests {
     @Test
@@ -909,7 +909,7 @@ struct AnthropicInterleavedDefaultsTests {
 
     @Test
     func `Anthropic refusal response decodes stop details explanation`() throws {
-        let data = """
+        let data = try #require("""
         {
           "id": "msg_test",
           "type": "message",
@@ -926,7 +926,7 @@ struct AnthropicInterleavedDefaultsTests {
             "output_tokens": 0
           }
         }
-        """.data(using: .utf8)!
+        """.data(using: .utf8))
 
         let response = try JSONDecoder().decode(AnthropicMessageResponse.self, from: data)
 

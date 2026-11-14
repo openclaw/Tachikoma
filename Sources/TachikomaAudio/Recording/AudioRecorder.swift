@@ -102,11 +102,11 @@ public final class AudioRecorder: ObservableObject, AudioRecorderProtocol {
     /// Check if audio recording is available
     public var isAvailable: Bool {
         #if os(macOS)
-        return AVCaptureDevice.authorizationStatus(for: .audio) != .denied
+        AVCaptureDevice.authorizationStatus(for: .audio) != .denied
         #elseif os(iOS) || os(tvOS) || os(watchOS)
-        return AVAudioSession.sharedInstance().recordPermission != .denied
+        AVAudioSession.sharedInstance().recordPermission != .denied
         #else
-        return true
+        true
         #endif
     }
 

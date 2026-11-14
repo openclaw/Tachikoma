@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 struct InvalidProviderBaseURLTests {
     /// Space in the host makes `URL(string:)` return nil. Force-unwrap used to crash.

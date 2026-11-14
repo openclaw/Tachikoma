@@ -4,10 +4,10 @@ import Darwin
 import Glibc
 #endif
 import Foundation
+import Tachikoma // For TachikomaError and TachikomaConfiguration
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Tachikoma // For TachikomaError and TachikomaConfiguration
 
 private enum AudioProviderEnvironment {
     static func mockModeEnabled() -> Bool {

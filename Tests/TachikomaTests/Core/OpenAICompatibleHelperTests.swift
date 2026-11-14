@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 #if os(Linux)
 @Suite(.disabled("URLProtocol mocking unavailable on Linux"))

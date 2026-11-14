@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import TachikomaMCP
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import TachikomaMCP
 
 @Suite("SSE requests", .serialized)
 struct SSERequestTests {

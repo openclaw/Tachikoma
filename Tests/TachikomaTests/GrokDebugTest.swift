@@ -39,11 +39,9 @@ func `Debug Grok streaming issue`() async throws {
 
     for try await delta in stream {
         print("Received delta: \(delta.type)")
-        if delta.type == .textDelta {
-            if let text = delta.content {
-                content += text
-                receivedContent = true
-            }
+        if delta.type == .textDelta, let text = delta.content {
+            content += text
+            receivedContent = true
         }
         if delta.type == .done {
             print("Stream completed")

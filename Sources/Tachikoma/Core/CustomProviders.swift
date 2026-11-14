@@ -20,8 +20,7 @@ public final class CustomProviderRegistry: @unchecked Sendable {
 
     /// Load from ~/.<profile>/config.json customProviders
     public func loadFromProfile() {
-        guard let json = Self.loadRawConfigJSON() else { return }
-        guard let cp = json["customProviders"] as? [String: Any] else { return }
+        guard let json = Self.loadRawConfigJSON(), let cp = json["customProviders"] as? [String: Any] else { return }
         var out: [String: CustomProviderInfo] = [:]
         for (id, anyVal) in cp {
             guard let dict = anyVal as? [String: Any] else { continue }

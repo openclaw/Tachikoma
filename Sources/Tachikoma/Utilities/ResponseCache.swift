@@ -133,12 +133,7 @@ public actor ResponseCache {
         -> ProviderResponse?
     {
         let key = CacheKey(from: request, providerIdentity: providerIdentity)
-        guard key.isCacheable else {
-            self.statistics.recordMiss()
-            return nil
-        }
-
-        guard let entry = cache[key] else {
+        guard key.isCacheable, let entry = cache[key] else {
             self.statistics.recordMiss()
             return nil
         }

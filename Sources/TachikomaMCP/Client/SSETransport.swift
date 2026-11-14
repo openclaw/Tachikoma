@@ -1,9 +1,9 @@
 import Foundation
+import Logging
+import MCP
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Logging
-import MCP
 
 final class SSERequestOperation: @unchecked Sendable {
     private let lock = NSLock()

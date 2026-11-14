@@ -7,11 +7,10 @@ struct AnthropicReasoningReplayTarget {
     let allowsLegacyUnknown: Bool
 
     func matches(_ customData: [String: String]) -> Bool {
-        guard let endpointIdentity = self.endpointIdentity else { return false }
-        guard customData["tachikoma.reasoning.provider"] == self.provider else {
-            return false
-        }
-        guard customData["tachikoma.reasoning.model"] == self.modelId else {
+        guard
+            let endpointIdentity = self.endpointIdentity, customData["tachikoma.reasoning.provider"] == self.provider,
+            customData["tachikoma.reasoning.model"] == self.modelId else
+        {
             return false
         }
         return customData["tachikoma.reasoning.base_url"] == endpointIdentity

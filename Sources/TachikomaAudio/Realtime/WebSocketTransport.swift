@@ -1,8 +1,8 @@
 import Foundation
+import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Tachikoma
 
 // MARK: - Transport Protocol
 

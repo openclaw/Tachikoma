@@ -4,11 +4,11 @@ import Tachikoma
 extension FileManager {
     var userDirectory: URL {
         #if os(macOS)
-        return homeDirectoryForCurrentUser
+        homeDirectoryForCurrentUser
         #elseif os(iOS)
-        return urls(for: .documentDirectory, in: .userDomainMask).first ?? temporaryDirectory
+        urls(for: .documentDirectory, in: .userDomainMask).first ?? temporaryDirectory
         #else
-        return temporaryDirectory
+        temporaryDirectory
         #endif
     }
 }

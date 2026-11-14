@@ -11,7 +11,7 @@ download_dir=$(mktemp -d)
 trap 'rm -rf "$download_dir"' EXIT
 mkdir -p "$destination"
 
-swiftformat_version=0.63.1
+swiftformat_version=0.64.6
 swiftlint_version=0.65.1
 
 install_tool() {
@@ -28,7 +28,7 @@ install_tool() {
 
 install_tool swiftformat \
   "https://github.com/nicklockwood/SwiftFormat/releases/download/$swiftformat_version/swiftformat.zip" \
-  385ef1a263ba28685157b98c5536b9c9105e124518f28b7ef8a2bee4b167eaeb
+  70e6b2057647fb1c54d620ebbb6649274de56534c57f91f67461a129ebaaba3e
 install_tool swiftlint \
   "https://github.com/realm/SwiftLint/releases/download/$swiftlint_version/portable_swiftlint.zip" \
   c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0

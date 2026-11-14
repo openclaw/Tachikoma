@@ -1,8 +1,8 @@
 import Foundation
+import Logging
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Logging
 
 private struct HTTPConnection: Sendable {
     let id = UUID()

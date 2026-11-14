@@ -416,8 +416,7 @@ private struct GoogleSSEParser {
     mutating func finish() {}
 
     mutating func process(payload: String) throws {
-        guard payload != "[DONE]" else { return }
-        guard let data = payload.data(using: .utf8) else { return }
+        guard payload != "[DONE]", let data = payload.data(using: .utf8) else { return }
         let chunk = try JSONDecoder().decode(GoogleStreamChunk.self, from: data)
 
         if let candidates = chunk.candidates {

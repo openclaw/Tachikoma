@@ -1,12 +1,12 @@
 import Foundation
+import Logging
+import MCP
+import Tachikoma
 #if canImport(Darwin)
 import Darwin
 #else
 import Glibc
 #endif
-import Logging
-import MCP
-import Tachikoma
 
 private struct StdioConnectionResources: Sendable {
     let process: Process?

@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 #if canImport(Darwin)
 import Darwin
@@ -1599,13 +1599,13 @@ struct ProviderEndToEndTests {
         try await NetworkMocking.withMockedNetwork { request in
             switch request.url?.host {
             case "api.minimax.io":
-                return NetworkMocking.jsonResponse(
+                NetworkMocking.jsonResponse(
                     for: request,
                     data: #"{"error":{"message":"rate limited","type":"rate_limit_error"}}"#.utf8Data(),
                     statusCode: 429,
                 )
             case "api.moonshot.ai":
-                return NetworkMocking.jsonResponse(
+                NetworkMocking.jsonResponse(
                     for: request,
                     data: Self.chatCompletionPayload(text: "Kimi remained available"),
                 )

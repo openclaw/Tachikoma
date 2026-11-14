@@ -1,14 +1,14 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
 #if canImport(Darwin)
 import Darwin
 #else
 import Glibc
 #endif
-@testable import Tachikoma
 
 struct OpenAICompatibleRealHTTPTests {
     @Test

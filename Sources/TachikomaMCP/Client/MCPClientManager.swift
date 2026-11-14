@@ -1,10 +1,10 @@
 import Foundation
 import Logging
 import MCP
+import Tachikoma
 #if canImport(os)
 import os.log
 #endif
-import Tachikoma
 
 #if canImport(Darwin)
 private typealias MCPOverrideLock = OSAllocatedUnfairLock<Bool?>
@@ -500,8 +500,7 @@ public final class TachikomaMCPClientManager {
     // MARK: File loading
 
     private func loadFileConfigs() -> [String: MCPServerConfig] {
-        guard let json = loadRawConfigJSON() else { return [:] }
-        guard let mcp = json["mcpClients"] as? [String: Any] else { return [:] }
+        guard let json = loadRawConfigJSON(), let mcp = json["mcpClients"] as? [String: Any] else { return [:] }
         var out: [String: MCPServerConfig] = [:]
         for (name, value) in mcp {
             guard let dict = value as? [String: Any] else { continue }
