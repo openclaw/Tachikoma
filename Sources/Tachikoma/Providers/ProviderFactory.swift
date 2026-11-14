@@ -116,28 +116,29 @@ public struct ProviderFactory {
         case let .custom(provider):
             // If the custom provider is a dynamic selection string (providerId/model),
             // attempt to resolve via CustomProviderRegistry first.
-            if let parsed = ProviderParser.parse(provider.modelId) {
-                if let custom = CustomProviderRegistry.shared.get(parsed.provider) {
-                    switch custom.kind {
-                    case .openai:
-                        return try OpenAICompatibleProvider(
-                            modelId: parsed.model,
-                            baseURL: custom.baseURL,
-                            configuration: configuration,
-                            apiKey: custom.apiKey,
-                            additionalHeaders: custom.headers,
-                        )
-                    case .anthropic:
-                        return try AnthropicCompatibleProvider(
-                            modelId: parsed.model,
-                            baseURL: custom.baseURL,
-                            configuration: configuration,
-                            apiKey: custom.apiKey,
-                            additionalHeaders: custom.headers,
-                            reasoningProvider: "custom-anthropic",
-                            reasoningBaseURL: custom.baseURL,
-                        )
-                    }
+            if
+                let parsed = ProviderParser.parse(provider.modelId),
+                let custom = CustomProviderRegistry.shared.get(parsed.provider)
+            {
+                switch custom.kind {
+                case .openai:
+                    return try OpenAICompatibleProvider(
+                        modelId: parsed.model,
+                        baseURL: custom.baseURL,
+                        configuration: configuration,
+                        apiKey: custom.apiKey,
+                        additionalHeaders: custom.headers,
+                    )
+                case .anthropic:
+                    return try AnthropicCompatibleProvider(
+                        modelId: parsed.model,
+                        baseURL: custom.baseURL,
+                        configuration: configuration,
+                        apiKey: custom.apiKey,
+                        additionalHeaders: custom.headers,
+                        reasoningProvider: "custom-anthropic",
+                        reasoningBaseURL: custom.baseURL,
+                    )
                 }
             }
             return provider

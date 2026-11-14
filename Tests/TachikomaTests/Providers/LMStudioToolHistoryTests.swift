@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 @Suite("LM Studio tool history", .serialized)
 struct LMStudioToolHistoryTests {

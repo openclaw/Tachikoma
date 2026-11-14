@@ -291,9 +291,9 @@ public final class RealtimeAudioManager: NSObject {
         // Get current audio devices
         #if os(macOS)
         // Get device names (simplified - would need Core Audio for full implementation)
-        return ("Default Input", "Default Output")
+        ("Default Input", "Default Output")
         #else
-        return ("Built-in Microphone", "Built-in Speaker")
+        ("Built-in Microphone", "Built-in Speaker")
         #endif
     }
 

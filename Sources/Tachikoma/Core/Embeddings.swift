@@ -258,18 +258,18 @@ struct EmbeddingProviderFactory {
     {
         switch model {
         case let .openai(openAIModel):
-            return OpenAIEmbeddingProvider(
+            OpenAIEmbeddingProvider(
                 model: openAIModel,
                 apiKey: configuration.getAPIKey(for: "openai"),
                 baseURL: configuration.getBaseURL(for: "openai"),
             )
         case let .cohere(cohereModel):
-            return CohereEmbeddingProvider(
+            CohereEmbeddingProvider(
                 model: cohereModel,
                 apiKey: configuration.getAPIKey(for: "cohere") ?? ProcessInfo.processInfo.environment["COHERE_API_KEY"],
             )
         case let .voyage(voyageModel):
-            return VoyageEmbeddingProvider(
+            VoyageEmbeddingProvider(
                 model: voyageModel,
                 apiKey: configuration.getAPIKey(for: "voyage") ?? ProcessInfo.processInfo.environment["VOYAGE_API_KEY"],
             )

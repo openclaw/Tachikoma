@@ -1190,11 +1190,10 @@ public final class OpenAIResponsesProvider: ModelProvider, ResponseCacheSafetyPr
             print("DEBUG: Tool call \(toolCall.function.name) raw arguments: \(toolCall.function.arguments)")
         }
 
-        guard let argumentsJSON = toolCall.function.arguments.data(using: .utf8) else {
-            return nil
-        }
-
-        guard let jsonObject = try? JSONSerialization.jsonObject(with: argumentsJSON) as? [String: Any] else {
+        guard
+            let argumentsJSON = toolCall.function.arguments.data(using: .utf8),
+            let jsonObject = try? JSONSerialization.jsonObject(with: argumentsJSON) as? [String: Any] else
+        {
             return nil
         }
 

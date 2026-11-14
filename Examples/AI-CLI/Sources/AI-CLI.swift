@@ -1,4 +1,5 @@
 import Foundation
+import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -7,7 +8,6 @@ import Darwin
 #else
 import Glibc
 #endif
-import Tachikoma
 
 struct CLIConfig {
     var modelString: String?
@@ -559,12 +559,13 @@ struct AICLI {
                 print("-------------------")
                 print(reasoning)
                 print("-------------------")
-            } else if supportsThinking {
+            } else if
+                supportsThinking,
                 // Show that reasoning occurred but isn't exposed
-                if result.usage != nil {
-                    print("\n⚠️  Note: Model used internal reasoning but doesn't expose the thinking process.")
-                    print("   The model performed reasoning internally as part of generating the response.")
-                }
+                result.usage != nil
+            {
+                print("\n⚠️  Note: Model used internal reasoning but doesn't expose the thinking process.")
+                print("   The model performed reasoning internally as part of generating the response.")
             }
         }
 

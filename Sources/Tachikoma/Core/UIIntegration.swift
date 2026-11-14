@@ -133,8 +133,9 @@ extension [ModelMessage] {
     public func toUIMessages() -> [UIMessage] {
         // Convert model messages to UI messages for display
         compactMap { modelMessage in
-            guard !modelMessage.isProviderNativeReasoningBlock else { return nil }
-            guard !modelMessage.isSyntheticReasoningBoundary else { return nil }
+            guard
+                !modelMessage.isProviderNativeReasoningBlock,
+                !modelMessage.isSyntheticReasoningBoundary else { return nil }
             var content = ""
             var attachments: [UIAttachment] = []
             var toolCalls: [AgentToolCall] = []

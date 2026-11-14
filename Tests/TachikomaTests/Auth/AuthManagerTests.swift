@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import Tachikoma
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import Tachikoma
 
 @Suite(.serialized)
 struct AuthManagerTests {
@@ -804,8 +804,8 @@ private final class AuthMockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+@MainActor
 extension URLSession {
-    @MainActor
     fileprivate static func mock(status: Int) -> URLSession {
         AuthMockURLProtocol.statusCode = status
         let config = URLSessionConfiguration.ephemeral
@@ -813,7 +813,6 @@ extension URLSession {
         return URLSession(configuration: config)
     }
 
-    @MainActor
     fileprivate static func oauthMock() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [OAuthMockURLProtocol.self]

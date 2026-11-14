@@ -55,7 +55,7 @@ extension Int: AgentToolValue {
 
     public static func fromJSON(_ json: Any) throws -> Self {
         if let int = try AnyAgentToolValue.fromJSON(json).intValue {
-            return int
+            int
         } else {
             throw TachikomaError.invalidInput("Expected an exactly representable Int, got \(type(of: json))")
         }
@@ -73,9 +73,9 @@ extension Double: AgentToolValue {
 
     public static func fromJSON(_ json: Any) throws -> Self {
         if let double = json as? Double {
-            return double
+            double
         } else if let int = json as? Int {
-            return Double(int)
+            Double(int)
         } else {
             throw TachikomaError.invalidInput("Expected Double, got \(type(of: json))")
         }

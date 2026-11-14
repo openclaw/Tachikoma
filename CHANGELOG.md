@@ -4,6 +4,8 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+- Refresh Swift package pins for EventSource, ASN.1, Collections, Configuration, Crypto, Log, NIO, Service Lifecycle, and System while retaining Swift 6.2 support; update checksum-verified SwiftFormat to 0.64.6 and apply its style fixes.
+
 - Pin the shared source-release workflow to a reviewed commit with complete release listing and exact-byte draft retry checks.
 
 - Fix live-provider credential detection on macOS Bash 3.2 and skip live setup and tests cleanly when no provider credential is configured.
