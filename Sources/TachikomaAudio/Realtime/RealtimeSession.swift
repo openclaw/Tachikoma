@@ -352,6 +352,8 @@ public final class RealtimeSession {
 
     private func decodeServerEvent(type: String, data: Data) throws -> RealtimeServerEvent {
         let decoder = JSONDecoder()
+        // convertFromSnakeCase rewrites response_id to responseId before
+        // CodingKeys are matched. Wrapper keys use those camelCase names.
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         switch type {
@@ -553,10 +555,10 @@ private struct ResponseTextDeltaEventWrapper: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case responseId = "response_id"
-        case itemId = "item_id"
-        case outputIndex = "output_index"
-        case contentIndex = "content_index"
+        case responseId
+        case itemId
+        case outputIndex
+        case contentIndex
         case delta
     }
 }
@@ -583,10 +585,10 @@ private struct ResponseTextDoneEventWrapper: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case responseId = "response_id"
-        case itemId = "item_id"
-        case outputIndex = "output_index"
-        case contentIndex = "content_index"
+        case responseId
+        case itemId
+        case outputIndex
+        case contentIndex
         case text
     }
 }
@@ -613,10 +615,10 @@ private struct ResponseAudioDeltaEventWrapper: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case responseId = "response_id"
-        case itemId = "item_id"
-        case outputIndex = "output_index"
-        case contentIndex = "content_index"
+        case responseId
+        case itemId
+        case outputIndex
+        case contentIndex
         case delta
     }
 }
@@ -641,10 +643,10 @@ private struct ResponseAudioDoneEventWrapper: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case responseId = "response_id"
-        case itemId = "item_id"
-        case outputIndex = "output_index"
-        case contentIndex = "content_index"
+        case responseId
+        case itemId
+        case outputIndex
+        case contentIndex
     }
 }
 
@@ -672,10 +674,10 @@ private struct ResponseFunctionCallArgumentsDoneEventWrapper: Decodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case responseId = "response_id"
-        case itemId = "item_id"
-        case outputIndex = "output_index"
-        case callId = "call_id"
+        case responseId
+        case itemId
+        case outputIndex
+        case callId
         case name
         case arguments
     }

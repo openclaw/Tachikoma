@@ -2,6 +2,8 @@
 
 Tachikoma’s `TachikomaAudio` product includes a typed client for OpenAI’s Realtime WebSocket API. It supports text and caller-supplied PCM audio input, streamed text and audio events, response interruption, and `AgentTool` function calls.
 
+The built-in `calculate` tool accepts numbers, parentheses, `+`, `-`, `*`, `/`, `^` or `**`, and `sqrt`, `abs`, `floor`, `ceiling`, `trunc`, `ln`, `log`, and `exp`. Integer division truncates toward zero. Invalid expressions and nesting beyond 128 levels return an error string without ending the conversation. Set the OpenAI base URL to an explicit `ws://` or `wss://` URL to use a custom realtime socket; an HTTPS chat base keeps the default OpenAI realtime endpoint.
+
 The current default model is `gpt-realtime`, represented as `.custom("gpt-realtime")`. Realtime is independent of the regular `generateText` API and does not use a GPT-4-era model case.
 
 ## Add the module

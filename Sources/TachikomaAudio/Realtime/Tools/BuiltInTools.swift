@@ -156,24 +156,13 @@ public struct CalculatorTool: RealtimeExecutableTool {
             return "Error: Expression is required"
         }
 
-        #if canImport(ObjectiveC)
-        // Use NSExpression for safe math evaluation (only available on Darwin platforms)
-        // Basic sanitization
-        let sanitized = expression
-            .replacingOccurrences(of: "sqrt", with: "sqrt")
-            .replacingOccurrences(of: "^", with: "**")
-
-        let mathExpression = NSExpression(format: sanitized)
-        if let result = mathExpression.expressionValue(with: nil, context: nil) {
-            return "Result: \(result)"
-        } else {
+        // Model text is not an NSExpression format string. A trailing operator
+        // or "%" raises NSInvalidArgumentException, and "%@" can fault the
+        // process. Swift does not catch that exception.
+        guard let result = ArithmeticExpression.evaluate(expression) else {
             return "Error: Could not evaluate expression"
         }
-        #else
-        // Simple fallback for Linux - only handle basic operations
-        // This is a very basic implementation and should be replaced with a proper math parser
-        return "Error: Math evaluation not supported on this platform"
-        #endif
+        return "Result: \(result)"
     }
 
     public init() {}
