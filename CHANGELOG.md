@@ -4,6 +4,9 @@ All notable changes to the Tachikoma project will be documented in this file.
 
 ## Unreleased
 
+- Reject malformed or excessively nested built-in calculator expressions without crashing, support arithmetic on Linux, and deliver realtime function-call and response events correctly. Thanks @SebTardif (#121).
+- Update Swift Crypto to 5.1.2 for X25519 and Scrypt security fixes and Swift Log to 1.17.2 for metadata-provider replacement correctness.
+
 ## 0.6.1 - 2026-11-15
 
 **Highlights:** Refresh Swift runtime dependencies while retaining Swift 6.2 support and the macOS 14 deployment target.

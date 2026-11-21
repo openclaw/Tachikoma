@@ -28,6 +28,23 @@ public enum ConnectionStatus: String, Sendable {
     case error
 }
 
+/// `OPENAI_BASE_URL` is the HTTPS chat endpoint. Only an explicit
+/// websocket value replaces the realtime socket.
+func realtimeSocketBaseURL(configuredOpenAIBase: String?) -> String {
+    let fallback = "wss://api.openai.com/v1/realtime"
+    guard
+        let configured = configuredOpenAIBase?.trimmingCharacters(in: .whitespacesAndNewlines),
+        !configured.isEmpty else
+    {
+        return fallback
+    }
+    let lowered = configured.lowercased()
+    guard lowered.hasPrefix("ws://") || lowered.hasPrefix("wss://") else {
+        return fallback
+    }
+    return configured
+}
+
 // MARK: - Realtime Conversation
 
 #if canImport(Combine)
@@ -159,6 +176,9 @@ public final class RealtimeConversation: ObservableObject {
 
         self.session = RealtimeSession(
             apiKey: apiKey,
+            baseURL: realtimeSocketBaseURL(
+                configuredOpenAIBase: configuration.getBaseURL(for: .openai),
+            ),
             configuration: sessionConfig,
         )
     }
