@@ -183,6 +183,24 @@ struct RealtimeClientEventWireTests {
         await manual.session.disconnect()
     }
 
+    @Test
+    func `public property edits replace the original wire form`() throws {
+        var named = RealtimeSessionConfig(from: SessionConfiguration(toolChoice: .function(name: "weather")))
+        named.toolChoice = "auto"
+        let namedObject = try Self.encoded(named)
+        #expect(namedObject["tool_choice"] as? String == "auto")
+
+        var textOnly = RealtimeSessionConfig(from: .textOnly())
+        textOnly.turnDetection = TurnDetection()
+        let textObject = try Self.encoded(textOnly)
+        let detection = try #require(textObject["turn_detection"] as? [String: Any])
+        #expect(detection["type"] as? String == "server_vad")
+    }
+
+    private static func encoded(_ config: RealtimeSessionConfig) throws -> [String: Any] {
+        try self.object(JSONEncoder().encode(config))
+    }
+
     private func connect(_ configuration: SessionConfiguration) async throws
         -> (session: RealtimeSession, frame: Data)
     {

@@ -168,10 +168,10 @@ public struct RealtimeSessionConfig: Codable, Sendable {
         self.inputAudioTranscription = nil
         switch config.turnDetection?.type {
         case .some(.none):
-            self.turnDetection = nil
+            self.storedTurnDetection = nil
             self.turnDetectionDisabled = true
         case let .some(kind):
-            self.turnDetection = TurnDetection(
+            self.storedTurnDetection = TurnDetection(
                 type: kind.rawValue,
                 threshold: Double(config.turnDetection?.threshold ?? 0.5),
                 prefixPaddingMs: config.turnDetection?.prefixPaddingMs ?? 300,
@@ -180,25 +180,25 @@ public struct RealtimeSessionConfig: Codable, Sendable {
             )
             self.turnDetectionDisabled = false
         case nil:
-            self.turnDetection = nil
+            self.storedTurnDetection = nil
             self.turnDetectionDisabled = false
         }
         self.tools = config.tools
         switch config.toolChoice {
         case .some(.auto):
-            self.toolChoice = "auto"
+            self.storedToolChoice = "auto"
             self.functionToolName = nil
         case .some(.none):
-            self.toolChoice = "none"
+            self.storedToolChoice = "none"
             self.functionToolName = nil
         case .some(.required):
-            self.toolChoice = "required"
+            self.storedToolChoice = "required"
             self.functionToolName = nil
         case let .some(.function(name)):
-            self.toolChoice = name
+            self.storedToolChoice = name
             self.functionToolName = name
         case nil:
-            self.toolChoice = nil
+            self.storedToolChoice = nil
             self.functionToolName = nil
         }
         self.temperature = config.temperature
@@ -208,13 +208,33 @@ public struct RealtimeSessionConfig: Codable, Sendable {
     public var inputAudioFormat: RealtimeAudioFormat?
     public var outputAudioFormat: RealtimeAudioFormat?
     public var inputAudioTranscription: TranscriptionConfig?
-    public var turnDetection: TurnDetection?
+    public var turnDetection: TurnDetection? {
+        get { self.storedTurnDetection }
+        set {
+            self.storedTurnDetection = newValue
+            if newValue != nil {
+                self.turnDetectionDisabled = false
+            }
+        }
+    }
+
     public var tools: [RealtimeTool]?
-    public var toolChoice: String?
+    public var toolChoice: String? {
+        get { self.storedToolChoice }
+        set {
+            self.storedToolChoice = newValue
+            if self.functionToolName != newValue {
+                self.functionToolName = nil
+            }
+        }
+    }
+
     public var temperature: Double?
     public var maxResponseOutputTokens: Int?
-    private let functionToolName: String?
-    private let turnDetectionDisabled: Bool
+    private var storedTurnDetection: TurnDetection?
+    private var storedToolChoice: String?
+    private var functionToolName: String?
+    private var turnDetectionDisabled: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, model, modalities, instructions, voice
@@ -243,6 +263,8 @@ public struct RealtimeSessionConfig: Codable, Sendable {
         self.modalities = ["text", "audio"]
         self.inputAudioFormat = .pcm16
         self.outputAudioFormat = .pcm16
+        self.storedTurnDetection = nil
+        self.storedToolChoice = nil
         self.functionToolName = nil
         self.turnDetectionDisabled = false
     }
@@ -261,10 +283,10 @@ public struct RealtimeSessionConfig: Codable, Sendable {
             forKey: .inputAudioTranscription,
         )
         if container.contains(.turnDetection), try container.decodeNil(forKey: .turnDetection) {
-            self.turnDetection = nil
+            self.storedTurnDetection = nil
             self.turnDetectionDisabled = true
         } else {
-            self.turnDetection = try container.decodeIfPresent(TurnDetection.self, forKey: .turnDetection)
+            self.storedTurnDetection = try container.decodeIfPresent(TurnDetection.self, forKey: .turnDetection)
             self.turnDetectionDisabled = false
         }
         self.tools = try container.decodeIfPresent([RealtimeTool].self, forKey: .tools)
@@ -279,7 +301,7 @@ public struct RealtimeSessionConfig: Codable, Sendable {
                 decodedFunctionName = choice.name
             }
         }
-        self.toolChoice = decodedToolChoice
+        self.storedToolChoice = decodedToolChoice
         self.functionToolName = decodedFunctionName
         self.temperature = try container.decodeIfPresent(Double.self, forKey: .temperature)
         self.maxResponseOutputTokens = try container.decodeIfPresent(Int.self, forKey: .maxResponseOutputTokens)
@@ -295,19 +317,19 @@ public struct RealtimeSessionConfig: Codable, Sendable {
         try container.encodeIfPresent(self.inputAudioFormat, forKey: .inputAudioFormat)
         try container.encodeIfPresent(self.outputAudioFormat, forKey: .outputAudioFormat)
         try container.encodeIfPresent(self.inputAudioTranscription, forKey: .inputAudioTranscription)
-        if self.turnDetectionDisabled {
+        if self.storedTurnDetection != nil {
+            try container.encodeIfPresent(self.storedTurnDetection, forKey: .turnDetection)
+        } else if self.turnDetectionDisabled {
             try container.encodeNil(forKey: .turnDetection)
-        } else {
-            try container.encodeIfPresent(self.turnDetection, forKey: .turnDetection)
         }
         try container.encodeIfPresent(self.tools, forKey: .tools)
-        if let functionToolName = self.functionToolName {
+        if let functionToolName = self.functionToolName, functionToolName == self.storedToolChoice {
             try container.encode(
                 FunctionToolChoice(type: "function", name: functionToolName),
                 forKey: .toolChoice,
             )
         } else {
-            try container.encodeIfPresent(self.toolChoice, forKey: .toolChoice)
+            try container.encodeIfPresent(self.storedToolChoice, forKey: .toolChoice)
         }
         try container.encodeIfPresent(self.temperature, forKey: .temperature)
         try container.encodeIfPresent(self.maxResponseOutputTokens, forKey: .maxResponseOutputTokens)
