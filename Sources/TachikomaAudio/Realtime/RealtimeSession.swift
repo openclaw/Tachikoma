@@ -316,17 +316,33 @@ public final class RealtimeSession {
     }
 
     private static func mergedFrame(type: String, eventId: String?, payload: some Encodable) throws -> Data {
-        var object: [String: Any] = ["type": type]
-        if let eventId {
-            object["event_id"] = eventId
-        }
         let encodedPayload = try JSONEncoder().encode(payload)
-        if let extra = try JSONSerialization.jsonObject(with: encodedPayload) as? [String: Any] {
-            for (key, value) in extra {
-                object[key] = value
-            }
+        guard
+            let payloadText = String(bytes: encodedPayload, encoding: .utf8),
+            payloadText.first == "{",
+            payloadText.last == "}" else
+        {
+            throw TachikomaError.invalidConfiguration("Realtime client payload was not a JSON object")
         }
-        return try JSONSerialization.data(withJSONObject: object)
+        var text = try "{\"type\":\(self.jsonLiteral(type))"
+        if let eventId {
+            try text += ",\"event_id\":\(self.jsonLiteral(eventId))"
+        }
+        let inner = payloadText.dropFirst().dropLast()
+        if !inner.isEmpty {
+            text += ","
+            text += inner
+        }
+        text += "}"
+        return Data(text.utf8)
+    }
+
+    private static func jsonLiteral(_ value: String) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        guard let text = String(bytes: data, encoding: .utf8) else {
+            throw TachikomaError.invalidConfiguration("Realtime client string was not UTF-8")
+        }
+        return text
     }
 
     private func startReceiving() {
