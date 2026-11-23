@@ -318,6 +318,73 @@ public struct ConversationItem: Codable, Sendable {
         self.arguments = nil
         self.output = nil
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleEventKey.self)
+        self.id = try container.decode(String.self, forKey: FlexibleEventKey("id"))
+        self.type = try container.decode(String.self, forKey: FlexibleEventKey("type"))
+        self.role = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("role"))
+        self.content = try container.decodeIfPresent(
+            [ConversationContent].self,
+            forKey: FlexibleEventKey("content"),
+        )
+        let camelCallID = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("callId"))
+        let snakeCallID = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("call_id"))
+        self.callId = camelCallID ?? snakeCallID
+        self.name = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("name"))
+        self.arguments = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("arguments"))
+        self.output = try container.decodeIfPresent(String.self, forKey: FlexibleEventKey("output"))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.type, forKey: .type)
+        try container.encodeIfPresent(self.role, forKey: .role)
+        try container.encodeIfPresent(self.content, forKey: .content)
+        try container.encodeIfPresent(self.callId, forKey: .callId)
+        try container.encodeIfPresent(self.name, forKey: .name)
+        try container.encodeIfPresent(self.arguments, forKey: .arguments)
+        try container.encodeIfPresent(self.output, forKey: .output)
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct FlexibleEventKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init(_ string: String) {
+        self.stringValue = string
+        self.intValue = nil
+    }
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue _: Int) {
+        nil
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private func flexibleValue<T: Decodable>(
+    _ type: T.Type,
+    camel: String,
+    snake: String,
+    from container: KeyedDecodingContainer<FlexibleEventKey>,
+) throws
+    -> T?
+{
+    if let value = try container.decodeIfPresent(type, forKey: FlexibleEventKey(camel)) {
+        return value
+    }
+    if camel == snake {
+        return nil
+    }
+    return try container.decodeIfPresent(type, forKey: FlexibleEventKey(snake))
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
@@ -398,6 +465,31 @@ public struct ResponseObject: Codable, Sendable {
         case statusDetails = "status_details"
         case output, usage
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleEventKey.self)
+        self.id = try container.decode(String.self, forKey: FlexibleEventKey("id"))
+        self.object = try container.decode(String.self, forKey: FlexibleEventKey("object"))
+        self.status = try container.decode(String.self, forKey: FlexibleEventKey("status"))
+        self.statusDetails = try flexibleValue(
+            StatusDetails.self,
+            camel: "statusDetails",
+            snake: "status_details",
+            from: container,
+        )
+        self.output = try container.decodeIfPresent([ResponseOutput].self, forKey: FlexibleEventKey("output")) ?? []
+        self.usage = try flexibleValue(ResponseUsage.self, camel: "usage", snake: "usage", from: container)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.id, forKey: .id)
+        try container.encode(self.object, forKey: .object)
+        try container.encode(self.status, forKey: .status)
+        try container.encodeIfPresent(self.statusDetails, forKey: .statusDetails)
+        try container.encode(self.output, forKey: .output)
+        try container.encodeIfPresent(self.usage, forKey: .usage)
+    }
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
@@ -447,6 +539,34 @@ public struct ResponseUsage: Codable, Sendable {
         case inputTokenDetails = "input_token_details"
         case outputTokenDetails = "output_token_details"
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleEventKey.self)
+        self.totalTokens = try flexibleValue(Int.self, camel: "totalTokens", snake: "total_tokens", from: container)
+        self.inputTokens = try flexibleValue(Int.self, camel: "inputTokens", snake: "input_tokens", from: container)
+        self.outputTokens = try flexibleValue(Int.self, camel: "outputTokens", snake: "output_tokens", from: container)
+        self.inputTokenDetails = try flexibleValue(
+            TokenDetails.self,
+            camel: "inputTokenDetails",
+            snake: "input_token_details",
+            from: container,
+        )
+        self.outputTokenDetails = try flexibleValue(
+            TokenDetails.self,
+            camel: "outputTokenDetails",
+            snake: "output_token_details",
+            from: container,
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.totalTokens, forKey: .totalTokens)
+        try container.encodeIfPresent(self.inputTokens, forKey: .inputTokens)
+        try container.encodeIfPresent(self.outputTokens, forKey: .outputTokens)
+        try container.encodeIfPresent(self.inputTokenDetails, forKey: .inputTokenDetails)
+        try container.encodeIfPresent(self.outputTokenDetails, forKey: .outputTokenDetails)
+    }
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
@@ -459,6 +579,20 @@ public struct TokenDetails: Codable, Sendable {
         case cachedTokens = "cached_tokens"
         case textTokens = "text_tokens"
         case audioTokens = "audio_tokens"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FlexibleEventKey.self)
+        self.cachedTokens = try flexibleValue(Int.self, camel: "cachedTokens", snake: "cached_tokens", from: container)
+        self.textTokens = try flexibleValue(Int.self, camel: "textTokens", snake: "text_tokens", from: container)
+        self.audioTokens = try flexibleValue(Int.self, camel: "audioTokens", snake: "audio_tokens", from: container)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.cachedTokens, forKey: .cachedTokens)
+        try container.encodeIfPresent(self.textTokens, forKey: .textTokens)
+        try container.encodeIfPresent(self.audioTokens, forKey: .audioTokens)
     }
 }
 
