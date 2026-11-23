@@ -75,6 +75,43 @@ struct RealtimeHandledEventFieldTests {
         #expect(created.item.arguments == "{\"expression\":\"2 + 2\"}")
     }
 
+    @Test
+    func `public response models keep snake case without the session decoder`() throws {
+        let usage = try JSONDecoder().decode(
+            ResponseUsage.self,
+            from: Data("{\"total_tokens\":12}".utf8),
+        )
+        #expect(usage.totalTokens == 12)
+        let usageObject = try Self.jsonObject(JSONEncoder().encode(usage))
+        #expect(usageObject["total_tokens"] as? Int == 12)
+        #expect(usageObject["totalTokens"] == nil)
+
+        let details = try JSONDecoder().decode(
+            TokenDetails.self,
+            from: Data("{\"cached_tokens\":1,\"text_tokens\":2}".utf8),
+        )
+        #expect(details.cachedTokens == 1)
+        #expect(details.textTokens == 2)
+        let detailsObject = try Self.jsonObject(JSONEncoder().encode(details))
+        #expect(detailsObject["cached_tokens"] as? Int == 1)
+        #expect(detailsObject["text_tokens"] as? Int == 2)
+
+        let responseJSON = """
+        {"id":"resp_1","object":"realtime.response","status":"completed","status_details":{"type":"completed"}}
+        """
+        let response = try JSONDecoder().decode(ResponseObject.self, from: Data(responseJSON.utf8))
+        #expect(response.statusDetails?.type == "completed")
+        let responseObject = try Self.jsonObject(JSONEncoder().encode(response))
+        let status = try #require(responseObject["status_details"] as? [String: Any])
+        #expect(status["type"] as? String == "completed")
+        #expect(responseObject["statusDetails"] == nil)
+    }
+
+    private static func jsonObject(_ data: Data) throws -> [String: Any] {
+        let object = try JSONSerialization.jsonObject(with: data)
+        return try #require(object as? [String: Any])
+    }
+
     private static func firstEvent(_ payload: Data) async throws -> RealtimeServerEvent? {
         let session = RealtimeSession(
             apiKey: "local-proof",
