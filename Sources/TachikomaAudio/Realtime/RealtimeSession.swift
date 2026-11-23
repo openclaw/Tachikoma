@@ -363,11 +363,11 @@ public final class RealtimeSession {
 
         case "session.created":
             let event = try decoder.decode(SessionEventWrapper.self, from: data)
-            return .sessionCreated(SessionCreatedEvent(session: RealtimeSessionConfig(from: event.session)))
+            return .sessionCreated(SessionCreatedEvent(session: event.session.realtimeConfig()))
 
         case "session.updated":
             let event = try decoder.decode(SessionEventWrapper.self, from: data)
-            return .sessionUpdated(SessionUpdatedEvent(session: RealtimeSessionConfig(from: event.session)))
+            return .sessionUpdated(SessionUpdatedEvent(session: event.session.realtimeConfig()))
 
         case "conversation.created":
             return .conversationCreated
@@ -520,7 +520,75 @@ private struct ErrorEventWrapper: Decodable {
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 private struct SessionEventWrapper: Decodable {
-    let session: SessionConfiguration
+    let session: BetaRealtimeSession
+}
+
+/// Beta `session.created` uses a string voice, a modality array, and
+/// `max_response_output_tokens` of either an integer or `"inf"`.
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct BetaRealtimeSession: Decodable {
+    let id: String?
+    let model: String?
+    let modalities: [String]?
+    let instructions: String?
+    let voice: String?
+    let inputAudioFormat: String?
+    let outputAudioFormat: String?
+    let temperature: Double?
+    let maxResponseOutputTokens: BetaMaxResponseTokens?
+
+    enum CodingKeys: String, CodingKey {
+        case id, model, modalities, instructions, voice, temperature
+        case inputAudioFormat
+        case outputAudioFormat
+        case maxResponseOutputTokens
+    }
+
+    func realtimeConfig() -> RealtimeSessionConfig {
+        var config = RealtimeSessionConfig(
+            model: self.model ?? "gpt-realtime",
+            voice: RealtimeVoice(rawValue: self.voice ?? "") ?? .alloy,
+            instructions: self.instructions,
+            temperature: self.temperature ?? 0.8,
+        )
+        config.id = self.id
+        config.modalities = self.modalities
+        config.instructions = self.instructions
+        config.voice = self.voice.flatMap(RealtimeVoice.init(rawValue:))
+        config.inputAudioFormat = self.inputAudioFormat.flatMap(RealtimeAudioFormat.init(rawValue:))
+        config.outputAudioFormat = self.outputAudioFormat.flatMap(RealtimeAudioFormat.init(rawValue:))
+        config.temperature = self.temperature
+        if case let .finite(limit) = self.maxResponseOutputTokens {
+            config.maxResponseOutputTokens = limit
+        }
+        return config
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private enum BetaMaxResponseTokens: Decodable {
+    case finite(Int)
+    case unlimited
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(Int.self) {
+            self = .finite(value)
+            return
+        }
+        let text = try container.decode(String.self)
+        if text == "inf" {
+            self = .unlimited
+            return
+        }
+        guard let value = Int(text) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid max_response_output_tokens",
+            )
+        }
+        self = .finite(value)
+    }
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
