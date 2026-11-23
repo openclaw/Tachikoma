@@ -151,7 +151,6 @@ public struct RealtimeSessionConfig: Codable, Sendable {
     public init(from config: SessionConfiguration) {
         self.id = nil
         self.model = config.model
-        // Convert modalities from OptionSet to string array
         var modalityStrings: [String] = []
         if let modalities = config.modalities {
             if modalities.contains(.text) {
@@ -161,9 +160,35 @@ public struct RealtimeSessionConfig: Codable, Sendable {
                 modalityStrings.append("audio")
             }
         }
-        modalities = modalityStrings.isEmpty ? ["text", "audio"] : modalityStrings
+        self.modalities = modalityStrings.isEmpty ? ["text", "audio"] : modalityStrings
         self.instructions = config.instructions
         self.voice = config.voice
+        self.inputAudioFormat = config.inputAudioFormat
+        self.outputAudioFormat = config.outputAudioFormat
+        self.inputAudioTranscription = nil
+        self.turnDetection = config.turnDetection.map { detection in
+            TurnDetection(
+                type: detection.type.rawValue,
+                threshold: Double(detection.threshold ?? 0.5),
+                prefixPaddingMs: detection.prefixPaddingMs ?? 300,
+                silenceDurationMs: detection.silenceDurationMs ?? 200,
+            )
+        }
+        self.tools = config.tools
+        switch config.toolChoice {
+        case .some(.auto):
+            self.toolChoice = "auto"
+        case .some(.none):
+            self.toolChoice = "none"
+        case .some(.required):
+            self.toolChoice = "required"
+        case let .some(.function(name)):
+            self.toolChoice = name
+        case nil:
+            self.toolChoice = nil
+        }
+        self.temperature = config.temperature
+        self.maxResponseOutputTokens = config.maxResponseOutputTokens
     }
 
     public var inputAudioFormat: RealtimeAudioFormat?

@@ -284,20 +284,34 @@ public final class RealtimeSession {
     }
 
     private func sendEvent(_ event: RealtimeClientEvent) async throws {
-        // Create event wrapper with type and event_id
-        let wrapper = EventWrapper(
-            type: event.type,
-            eventId: event.eventId,
-            event: event,
-        )
-
-        // Encode to JSON
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        let data = try encoder.encode(wrapper)
-
-        // Send via transport
+        let data = try self.encodedFrame(for: event, encoder: encoder)
         try await self.transport.send(data)
+    }
+
+    /// Encode the associated payload, not the Swift enum case name.
+    /// `session.update` carries `session`. `conversation.item.create` carries `item`.
+    private func encodedFrame(for event: RealtimeClientEvent, encoder: JSONEncoder) throws -> Data {
+        let type = event.type
+        let eventId = event.eventId
+        switch event {
+        case let .sessionUpdate(value):
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+        case let .inputAudioBufferAppend(value):
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+        case .inputAudioBufferCommit, .inputAudioBufferClear, .responseCancel:
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: EmptyClientPayload()))
+        case let .conversationItemCreate(value):
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+        case let .conversationItemTruncate(value):
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+        case let .conversationItemDelete(value):
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+        case let .responseCreate(value):
+            let envelope = ResponseCreateEnvelope(response: value)
+            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: envelope))
+        }
     }
 
     private func startReceiving() {
@@ -485,8 +499,9 @@ private struct EventWrapper<T: Encodable>: Encodable {
             for item in array {
                 try self.encodeAnyArray(item, container: &nestedContainer)
             }
+        case let number as NSNumber:
+            try self.encodeNumber(number, forKey: key, container: &container)
         default:
-            // Skip unsupported types
             break
         }
     }
@@ -501,11 +516,64 @@ private struct EventWrapper<T: Encodable>: Encodable {
             try container.encode(double)
         case let bool as Bool:
             try container.encode(bool)
+        case let dict as [String: Any]:
+            var nested = container.nestedContainer(keyedBy: DynamicCodingKey.self)
+            for (key, item) in dict {
+                guard let codingKey = DynamicCodingKey(stringValue: key) else { continue }
+                try self.encodeAny(item, forKey: codingKey, container: &nested)
+            }
+        case let array as [Any]:
+            var nested = container.nestedUnkeyedContainer()
+            for item in array {
+                try self.encodeAnyArray(item, container: &nested)
+            }
+        case let number as NSNumber:
+            try self.encodeNumber(number, container: &container)
         default:
-            // Skip unsupported types
             break
         }
     }
+
+    private func encodeNumber(
+        _ number: NSNumber,
+        forKey key: DynamicCodingKey,
+        container: inout KeyedEncodingContainer<DynamicCodingKey>,
+    ) throws {
+        if Self.isBoolean(number) {
+            try container.encode(number.boolValue, forKey: key)
+        } else if Self.isWhole(number) {
+            try container.encode(number.intValue, forKey: key)
+        } else {
+            try container.encode(number.doubleValue, forKey: key)
+        }
+    }
+
+    private func encodeNumber(_ number: NSNumber, container: inout UnkeyedEncodingContainer) throws {
+        if Self.isBoolean(number) {
+            try container.encode(number.boolValue)
+        } else if Self.isWhole(number) {
+            try container.encode(number.intValue)
+        } else {
+            try container.encode(number.doubleValue)
+        }
+    }
+
+    private static func isBoolean(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
+    private static func isWhole(_ number: NSNumber) -> Bool {
+        let value = number.doubleValue
+        return value.rounded(.towardZero) == value && value <= Double(Int.max) && value >= Double(Int.min)
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct EmptyClientPayload: Encodable {}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct ResponseCreateEnvelope: Encodable {
+    let response: ResponseCreateEvent
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
