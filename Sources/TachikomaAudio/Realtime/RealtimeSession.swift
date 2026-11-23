@@ -284,20 +284,65 @@ public final class RealtimeSession {
     }
 
     private func sendEvent(_ event: RealtimeClientEvent) async throws {
-        // Create event wrapper with type and event_id
-        let wrapper = EventWrapper(
-            type: event.type,
-            eventId: event.eventId,
-            event: event,
-        )
-
-        // Encode to JSON
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        let data = try encoder.encode(wrapper)
-
-        // Send via transport
+        let data = try self.encodedFrame(for: event)
         try await self.transport.send(data)
+    }
+
+    /// Encode the associated payload, not the Swift enum case name.
+    /// The payload's own JSON keys are copied unchanged, including tool schemas.
+    private func encodedFrame(for event: RealtimeClientEvent) throws -> Data {
+        let type = event.type
+        let eventId = event.eventId
+        switch event {
+        case let .sessionUpdate(value):
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
+        case let .inputAudioBufferAppend(value):
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
+        case .inputAudioBufferCommit, .inputAudioBufferClear, .responseCancel:
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: EmptyClientPayload())
+        case let .conversationItemCreate(value):
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
+        case let .conversationItemTruncate(value):
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
+        case let .conversationItemDelete(value):
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
+        case let .responseCreate(value):
+            return try Self.mergedFrame(
+                type: type,
+                eventId: eventId,
+                payload: ResponseCreateEnvelope(response: value),
+            )
+        }
+    }
+
+    private static func mergedFrame(type: String, eventId: String?, payload: some Encodable) throws -> Data {
+        let encodedPayload = try JSONEncoder().encode(payload)
+        guard
+            let payloadText = String(bytes: encodedPayload, encoding: .utf8),
+            payloadText.first == "{",
+            payloadText.last == "}" else
+        {
+            throw TachikomaError.invalidConfiguration("Realtime client payload was not a JSON object")
+        }
+        var text = try "{\"type\":\(self.jsonLiteral(type))"
+        if let eventId {
+            try text += ",\"event_id\":\(self.jsonLiteral(eventId))"
+        }
+        let inner = payloadText.dropFirst().dropLast()
+        if !inner.isEmpty {
+            text += ","
+            text += inner
+        }
+        text += "}"
+        return Data(text.utf8)
+    }
+
+    private static func jsonLiteral(_ value: String) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        guard let text = String(bytes: data, encoding: .utf8) else {
+            throw TachikomaError.invalidConfiguration("Realtime client string was not UTF-8")
+        }
+        return text
     }
 
     private func startReceiving() {
@@ -432,80 +477,12 @@ public final class RealtimeSession {
     }
 }
 
-// MARK: - Helper Types for JSON Decoding
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct EmptyClientPayload: Encodable {}
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-private struct EventWrapper<T: Encodable>: Encodable {
-    let type: String
-    let eventId: String?
-    let event: T
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: DynamicCodingKey.self)
-
-        try container.encode(self.type, forKey: DynamicCodingKey(stringValue: "type")!)
-        if let eventId {
-            try container.encode(eventId, forKey: DynamicCodingKey(stringValue: "event_id")!)
-        }
-
-        // Encode the event's properties directly into the container
-        let eventData = try JSONEncoder().encode(self.event)
-        if let eventDict = try JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
-            for (key, value) in eventDict {
-                if let codingKey = DynamicCodingKey(stringValue: key) {
-                    try self.encodeAny(value, forKey: codingKey, container: &container)
-                }
-            }
-        }
-    }
-
-    private func encodeAny(
-        _ value: Any,
-        forKey key: DynamicCodingKey,
-        container: inout KeyedEncodingContainer<DynamicCodingKey>,
-    ) throws {
-        switch value {
-        case let string as String:
-            try container.encode(string, forKey: key)
-        case let int as Int:
-            try container.encode(int, forKey: key)
-        case let double as Double:
-            try container.encode(double, forKey: key)
-        case let bool as Bool:
-            try container.encode(bool, forKey: key)
-        case let dict as [String: Any]:
-            var nestedContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: key)
-            for (nestedKey, nestedValue) in dict {
-                if let nestedCodingKey = DynamicCodingKey(stringValue: nestedKey) {
-                    try self.encodeAny(nestedValue, forKey: nestedCodingKey, container: &nestedContainer)
-                }
-            }
-        case let array as [Any]:
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: key)
-            for item in array {
-                try self.encodeAnyArray(item, container: &nestedContainer)
-            }
-        default:
-            // Skip unsupported types
-            break
-        }
-    }
-
-    private func encodeAnyArray(_ value: Any, container: inout UnkeyedEncodingContainer) throws {
-        switch value {
-        case let string as String:
-            try container.encode(string)
-        case let int as Int:
-            try container.encode(int)
-        case let double as Double:
-            try container.encode(double)
-        case let bool as Bool:
-            try container.encode(bool)
-        default:
-            // Skip unsupported types
-            break
-        }
-    }
+private struct ResponseCreateEnvelope: Encodable {
+    let response: ResponseCreateEvent
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)

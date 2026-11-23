@@ -304,7 +304,7 @@ public final class RealtimeConversation: ObservableObject {
         let item = ConversationItem(
             type: "message",
             role: "user",
-            content: [ConversationContent(type: "text", text: text)],
+            content: [ConversationContent(type: "input_text", text: text)],
         )
 
         // Add to local items

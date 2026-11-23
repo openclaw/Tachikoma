@@ -151,7 +151,6 @@ public struct RealtimeSessionConfig: Codable, Sendable {
     public init(from config: SessionConfiguration) {
         self.id = nil
         self.model = config.model
-        // Convert modalities from OptionSet to string array
         var modalityStrings: [String] = []
         if let modalities = config.modalities {
             if modalities.contains(.text) {
@@ -161,19 +160,81 @@ public struct RealtimeSessionConfig: Codable, Sendable {
                 modalityStrings.append("audio")
             }
         }
-        modalities = modalityStrings.isEmpty ? ["text", "audio"] : modalityStrings
+        self.modalities = modalityStrings.isEmpty ? ["text", "audio"] : modalityStrings
         self.instructions = config.instructions
         self.voice = config.voice
+        self.inputAudioFormat = config.inputAudioFormat
+        self.outputAudioFormat = config.outputAudioFormat
+        self.inputAudioTranscription = nil
+        switch config.turnDetection?.type {
+        case .some(.none):
+            self.storedTurnDetection = nil
+            self.turnDetectionDisabled = true
+        case let .some(kind):
+            self.storedTurnDetection = TurnDetection(
+                type: kind.rawValue,
+                threshold: Double(config.turnDetection?.threshold ?? 0.5),
+                prefixPaddingMs: config.turnDetection?.prefixPaddingMs ?? 300,
+                silenceDurationMs: config.turnDetection?.silenceDurationMs ?? 200,
+                createResponse: config.turnDetection?.createResponse,
+            )
+            self.turnDetectionDisabled = false
+        case nil:
+            self.storedTurnDetection = nil
+            self.turnDetectionDisabled = false
+        }
+        self.tools = config.tools
+        switch config.toolChoice {
+        case .some(.auto):
+            self.storedToolChoice = "auto"
+            self.functionToolName = nil
+        case .some(.none):
+            self.storedToolChoice = "none"
+            self.functionToolName = nil
+        case .some(.required):
+            self.storedToolChoice = "required"
+            self.functionToolName = nil
+        case let .some(.function(name)):
+            self.storedToolChoice = name
+            self.functionToolName = name
+        case nil:
+            self.storedToolChoice = nil
+            self.functionToolName = nil
+        }
+        self.temperature = config.temperature
+        self.maxResponseOutputTokens = config.maxResponseOutputTokens
     }
 
     public var inputAudioFormat: RealtimeAudioFormat?
     public var outputAudioFormat: RealtimeAudioFormat?
     public var inputAudioTranscription: TranscriptionConfig?
-    public var turnDetection: TurnDetection?
+    public var turnDetection: TurnDetection? {
+        get { self.storedTurnDetection }
+        set {
+            self.storedTurnDetection = newValue
+            if newValue != nil {
+                self.turnDetectionDisabled = false
+            }
+        }
+    }
+
     public var tools: [RealtimeTool]?
-    public var toolChoice: String?
+    public var toolChoice: String? {
+        get { self.storedToolChoice }
+        set {
+            self.storedToolChoice = newValue
+            if self.functionToolName != newValue {
+                self.functionToolName = nil
+            }
+        }
+    }
+
     public var temperature: Double?
     public var maxResponseOutputTokens: Int?
+    private var storedTurnDetection: TurnDetection?
+    private var storedToolChoice: String?
+    private var functionToolName: String?
+    private var turnDetectionDisabled: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, model, modalities, instructions, voice
@@ -202,7 +263,83 @@ public struct RealtimeSessionConfig: Codable, Sendable {
         self.modalities = ["text", "audio"]
         self.inputAudioFormat = .pcm16
         self.outputAudioFormat = .pcm16
+        self.storedTurnDetection = nil
+        self.storedToolChoice = nil
+        self.functionToolName = nil
+        self.turnDetectionDisabled = false
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.modalities = try container.decodeIfPresent([String].self, forKey: .modalities)
+        self.instructions = try container.decodeIfPresent(String.self, forKey: .instructions)
+        self.voice = try container.decodeIfPresent(RealtimeVoice.self, forKey: .voice)
+        self.inputAudioFormat = try container.decodeIfPresent(RealtimeAudioFormat.self, forKey: .inputAudioFormat)
+        self.outputAudioFormat = try container.decodeIfPresent(RealtimeAudioFormat.self, forKey: .outputAudioFormat)
+        self.inputAudioTranscription = try container.decodeIfPresent(
+            TranscriptionConfig.self,
+            forKey: .inputAudioTranscription,
+        )
+        if container.contains(.turnDetection), try container.decodeNil(forKey: .turnDetection) {
+            self.storedTurnDetection = nil
+            self.turnDetectionDisabled = true
+        } else {
+            self.storedTurnDetection = try container.decodeIfPresent(TurnDetection.self, forKey: .turnDetection)
+            self.turnDetectionDisabled = false
+        }
+        self.tools = try container.decodeIfPresent([RealtimeTool].self, forKey: .tools)
+        var decodedToolChoice: String?
+        var decodedFunctionName: String?
+        if container.contains(.toolChoice), try container.decodeNil(forKey: .toolChoice) == false {
+            if let name = try? container.decode(String.self, forKey: .toolChoice) {
+                decodedToolChoice = name
+            } else {
+                let choice = try container.decode(FunctionToolChoice.self, forKey: .toolChoice)
+                decodedToolChoice = choice.name
+                decodedFunctionName = choice.name
+            }
+        }
+        self.storedToolChoice = decodedToolChoice
+        self.functionToolName = decodedFunctionName
+        self.temperature = try container.decodeIfPresent(Double.self, forKey: .temperature)
+        self.maxResponseOutputTokens = try container.decodeIfPresent(Int.self, forKey: .maxResponseOutputTokens)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(self.id, forKey: .id)
+        try container.encodeIfPresent(self.model, forKey: .model)
+        try container.encodeIfPresent(self.modalities, forKey: .modalities)
+        try container.encodeIfPresent(self.instructions, forKey: .instructions)
+        try container.encodeIfPresent(self.voice, forKey: .voice)
+        try container.encodeIfPresent(self.inputAudioFormat, forKey: .inputAudioFormat)
+        try container.encodeIfPresent(self.outputAudioFormat, forKey: .outputAudioFormat)
+        try container.encodeIfPresent(self.inputAudioTranscription, forKey: .inputAudioTranscription)
+        if self.storedTurnDetection != nil {
+            try container.encodeIfPresent(self.storedTurnDetection, forKey: .turnDetection)
+        } else if self.turnDetectionDisabled {
+            try container.encodeNil(forKey: .turnDetection)
+        }
+        try container.encodeIfPresent(self.tools, forKey: .tools)
+        if let functionToolName = self.functionToolName, functionToolName == self.storedToolChoice {
+            try container.encode(
+                FunctionToolChoice(type: "function", name: functionToolName),
+                forKey: .toolChoice,
+            )
+        } else {
+            try container.encodeIfPresent(self.storedToolChoice, forKey: .toolChoice)
+        }
+        try container.encodeIfPresent(self.temperature, forKey: .temperature)
+        try container.encodeIfPresent(self.maxResponseOutputTokens, forKey: .maxResponseOutputTokens)
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
+private struct FunctionToolChoice: Codable, Sendable {
+    let type: String
+    let name: String
 }
 
 // MARK: - Audio Events
@@ -747,11 +884,13 @@ public struct TurnDetection: Codable, Sendable {
     public let threshold: Double?
     public let prefixPaddingMs: Int?
     public let silenceDurationMs: Int?
+    public let createResponse: Bool?
 
     enum CodingKeys: String, CodingKey {
         case type, threshold
         case prefixPaddingMs = "prefix_padding_ms"
         case silenceDurationMs = "silence_duration_ms"
+        case createResponse = "create_response"
     }
 
     public init(
@@ -759,11 +898,13 @@ public struct TurnDetection: Codable, Sendable {
         threshold: Double = 0.5,
         prefixPaddingMs: Int = 300,
         silenceDurationMs: Int = 200,
+        createResponse: Bool? = nil,
     ) {
         self.type = type
         self.threshold = threshold
         self.prefixPaddingMs = prefixPaddingMs
         self.silenceDurationMs = silenceDurationMs
+        self.createResponse = createResponse
     }
 }
 
