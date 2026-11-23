@@ -1,4 +1,3 @@
-import CoreFoundation
 import Foundation
 import Tachikoma
 
@@ -285,34 +284,49 @@ public final class RealtimeSession {
     }
 
     private func sendEvent(_ event: RealtimeClientEvent) async throws {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        let data = try self.encodedFrame(for: event, encoder: encoder)
+        let data = try self.encodedFrame(for: event)
         try await self.transport.send(data)
     }
 
     /// Encode the associated payload, not the Swift enum case name.
-    /// `session.update` carries `session`. `conversation.item.create` carries `item`.
-    private func encodedFrame(for event: RealtimeClientEvent, encoder: JSONEncoder) throws -> Data {
+    /// The payload's own JSON keys are copied unchanged, including tool schemas.
+    private func encodedFrame(for event: RealtimeClientEvent) throws -> Data {
         let type = event.type
         let eventId = event.eventId
         switch event {
         case let .sessionUpdate(value):
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
         case let .inputAudioBufferAppend(value):
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
         case .inputAudioBufferCommit, .inputAudioBufferClear, .responseCancel:
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: EmptyClientPayload()))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: EmptyClientPayload())
         case let .conversationItemCreate(value):
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
         case let .conversationItemTruncate(value):
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
         case let .conversationItemDelete(value):
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: value))
+            return try Self.mergedFrame(type: type, eventId: eventId, payload: value)
         case let .responseCreate(value):
-            let envelope = ResponseCreateEnvelope(response: value)
-            return try encoder.encode(EventWrapper(type: type, eventId: eventId, event: envelope))
+            return try Self.mergedFrame(
+                type: type,
+                eventId: eventId,
+                payload: ResponseCreateEnvelope(response: value),
+            )
         }
+    }
+
+    private static func mergedFrame(type: String, eventId: String?, payload: some Encodable) throws -> Data {
+        var object: [String: Any] = ["type": type]
+        if let eventId {
+            object["event_id"] = eventId
+        }
+        let encodedPayload = try JSONEncoder().encode(payload)
+        if let extra = try JSONSerialization.jsonObject(with: encodedPayload) as? [String: Any] {
+            for (key, value) in extra {
+                object[key] = value
+            }
+        }
+        return try JSONSerialization.data(withJSONObject: object)
     }
 
     private func startReceiving() {
@@ -444,128 +458,6 @@ public final class RealtimeSession {
             self.state = .error
             self.eventStreamContinuation?.finish(throwing: error)
         }
-    }
-}
-
-// MARK: - Helper Types for JSON Decoding
-
-@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-private struct EventWrapper<T: Encodable>: Encodable {
-    let type: String
-    let eventId: String?
-    let event: T
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: DynamicCodingKey.self)
-
-        try container.encode(self.type, forKey: DynamicCodingKey(stringValue: "type")!)
-        if let eventId {
-            try container.encode(eventId, forKey: DynamicCodingKey(stringValue: "event_id")!)
-        }
-
-        // Encode the event's properties directly into the container
-        let eventData = try JSONEncoder().encode(self.event)
-        if let eventDict = try JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
-            for (key, value) in eventDict {
-                if let codingKey = DynamicCodingKey(stringValue: key) {
-                    try self.encodeAny(value, forKey: codingKey, container: &container)
-                }
-            }
-        }
-    }
-
-    private func encodeAny(
-        _ value: Any,
-        forKey key: DynamicCodingKey,
-        container: inout KeyedEncodingContainer<DynamicCodingKey>,
-    ) throws {
-        switch value {
-        case let string as String:
-            try container.encode(string, forKey: key)
-        case let int as Int:
-            try container.encode(int, forKey: key)
-        case let double as Double:
-            try container.encode(double, forKey: key)
-        case let bool as Bool:
-            try container.encode(bool, forKey: key)
-        case let dict as [String: Any]:
-            var nestedContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: key)
-            for (nestedKey, nestedValue) in dict {
-                if let nestedCodingKey = DynamicCodingKey(stringValue: nestedKey) {
-                    try self.encodeAny(nestedValue, forKey: nestedCodingKey, container: &nestedContainer)
-                }
-            }
-        case let array as [Any]:
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: key)
-            for item in array {
-                try self.encodeAnyArray(item, container: &nestedContainer)
-            }
-        case let number as NSNumber:
-            try self.encodeNumber(number, forKey: key, container: &container)
-        default:
-            break
-        }
-    }
-
-    private func encodeAnyArray(_ value: Any, container: inout UnkeyedEncodingContainer) throws {
-        switch value {
-        case let string as String:
-            try container.encode(string)
-        case let int as Int:
-            try container.encode(int)
-        case let double as Double:
-            try container.encode(double)
-        case let bool as Bool:
-            try container.encode(bool)
-        case let dict as [String: Any]:
-            var nested = container.nestedContainer(keyedBy: DynamicCodingKey.self)
-            for (key, item) in dict {
-                guard let codingKey = DynamicCodingKey(stringValue: key) else { continue }
-                try self.encodeAny(item, forKey: codingKey, container: &nested)
-            }
-        case let array as [Any]:
-            var nested = container.nestedUnkeyedContainer()
-            for item in array {
-                try self.encodeAnyArray(item, container: &nested)
-            }
-        case let number as NSNumber:
-            try self.encodeNumber(number, container: &container)
-        default:
-            break
-        }
-    }
-
-    private func encodeNumber(
-        _ number: NSNumber,
-        forKey key: DynamicCodingKey,
-        container: inout KeyedEncodingContainer<DynamicCodingKey>,
-    ) throws {
-        if Self.isBoolean(number) {
-            try container.encode(number.boolValue, forKey: key)
-        } else if Self.isWhole(number) {
-            try container.encode(number.intValue, forKey: key)
-        } else {
-            try container.encode(number.doubleValue, forKey: key)
-        }
-    }
-
-    private func encodeNumber(_ number: NSNumber, container: inout UnkeyedEncodingContainer) throws {
-        if Self.isBoolean(number) {
-            try container.encode(number.boolValue)
-        } else if Self.isWhole(number) {
-            try container.encode(number.intValue)
-        } else {
-            try container.encode(number.doubleValue)
-        }
-    }
-
-    private static func isBoolean(_ number: NSNumber) -> Bool {
-        CFGetTypeID(number) == CFBooleanGetTypeID()
-    }
-
-    private static func isWhole(_ number: NSNumber) -> Bool {
-        let value = number.doubleValue
-        return value.rounded(.towardZero) == value && value <= Double(Int.max) && value >= Double(Int.min)
     }
 }
 

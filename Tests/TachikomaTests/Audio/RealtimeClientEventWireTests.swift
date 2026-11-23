@@ -103,6 +103,101 @@ struct RealtimeClientEventWireTests {
         await session.disconnect()
     }
 
+    @Test
+    func `tool schema keys booleans and nulls stay on the wire`() async throws {
+        let source = AnyAgentToolValue(object: [
+            "type": AnyAgentToolValue(string: "object"),
+            "properties": AnyAgentToolValue(object: [
+                "postalCode": AnyAgentToolValue(object: [
+                    "type": AnyAgentToolValue(string: "string"),
+                ]),
+            ]),
+            "required": AnyAgentToolValue(array: [AnyAgentToolValue(string: "postalCode")]),
+            "additionalProperties": AnyAgentToolValue(bool: false),
+            "oneOf": AnyAgentToolValue(array: [
+                AnyAgentToolValue(object: [
+                    "type": AnyAgentToolValue(string: "object"),
+                ]),
+            ]),
+            "enum": AnyAgentToolValue(array: [
+                AnyAgentToolValue(bool: true),
+                AnyAgentToolValue(null: ()),
+            ]),
+        ])
+        let connected = try await self.connect(SessionConfiguration(
+            instructions: nil,
+            tools: [
+                RealtimeTool(
+                    name: "weather",
+                    description: "Look up weather",
+                    parameters: AgentToolParameters(sourceSchema: source),
+                ),
+            ],
+            temperature: nil,
+        ))
+        let frame = connected.frame
+        let session = connected.session
+        let text = try #require(String(bytes: frame, encoding: .utf8))
+        #expect(text.contains("\"oneOf\""))
+        #expect(text.contains("\"postalCode\""))
+        #expect(text.contains("\"additionalProperties\":false"))
+        #expect(!text.contains("one_of"))
+        #expect(!text.contains("postal_code"))
+        #expect(!text.contains("additional_properties"))
+        let root = try Self.object(frame)
+        let sessionObject = try #require(root["session"] as? [String: Any])
+        let tools = try #require(sessionObject["tools"] as? [[String: Any]])
+        let parameters = try #require(tools.first?["parameters"] as? [String: Any])
+        let choices = try #require(parameters["enum"] as? [Any])
+        #expect(choices.count == 2)
+        #expect(choices.contains { $0 is NSNull })
+        await session.disconnect()
+    }
+
+    @Test
+    func `function choice is an object and disabled detection is null`() async throws {
+        let named = try await self.connect(SessionConfiguration(
+            toolChoice: .function(name: "weather"),
+        ))
+        let namedObject = try Self.object(named.frame)
+        let sessionObject = try #require(namedObject["session"] as? [String: Any])
+        let choice = try #require(sessionObject["tool_choice"] as? [String: Any])
+        #expect(choice["type"] as? String == "function")
+        #expect(choice["name"] as? String == "weather")
+        await named.session.disconnect()
+
+        let textOnly = try await self.connect(.textOnly())
+        let text = try #require(String(bytes: textOnly.frame, encoding: .utf8))
+        #expect(text.contains("\"turn_detection\":null"))
+        await textOnly.session.disconnect()
+
+        let manual = try await self.connect(SessionConfiguration(
+            instructions: nil,
+            turnDetection: RealtimeTurnDetection(type: .serverVad, createResponse: false),
+            tools: nil,
+            temperature: nil,
+        ))
+        let manualText = try #require(String(bytes: manual.frame, encoding: .utf8))
+        #expect(manualText.contains("\"create_response\":false"))
+        #expect(manualText.contains("\"type\":\"server_vad\""))
+        await manual.session.disconnect()
+    }
+
+    private func connect(_ configuration: SessionConfiguration) async throws
+        -> (session: RealtimeSession, frame: Data)
+    {
+        let transport = CapturingRealtimeTransport()
+        let session = RealtimeSession(
+            apiKey: "local-proof",
+            baseURL: "ws://127.0.0.1:9/v1/realtime",
+            configuration: configuration,
+            transport: transport,
+        )
+        try await session.connect()
+        let frame = try #require(transport.frames().first)
+        return (session, frame)
+    }
+
     private static func object(_ data: Data?) throws -> [String: Any] {
         let data = try #require(data)
         let object = try JSONSerialization.jsonObject(with: data)
